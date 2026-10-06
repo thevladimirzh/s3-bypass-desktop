@@ -1,0 +1,273 @@
+# M1 Test Plan — story ↔ test area ↔ TC IDs ↔ plan tasks
+
+Owner: **QA** · Basis: `docs/product/stories/US-01..US-07`, `docs/product/PRD.md` §5/§7,
+`docs/plans/m1-mvp.md` · Strategy: `strategy.md` · Status: **plan only — no test code written yet**
+(Phase B starts after the analysis gate M1-02).
+
+**TC numbering rule** (strategy §4.3): `TC-<story>-<nn>` where `nn` equals the AC number
+(`TC-01-03` ↔ `AC-01.3`); cases not derived from an AC use `nn ≥ 10`; cross-cutting pins are
+`TC-NFRn-nn`, `TC-IPC-nn`, `TC-E2E-nn`. IDs are never renumbered.
+
+**Status legend:** `RED-planned` = QA writes the failing test in the named RED task ·
+`addendum` = QA writes it inside the nearest RED batch (see §12 plan gaps) · `L3` = Playwright E2E (M1-24,
+needs GREEN code first) · `L4` = manual/checklist (M1-27) · `blocked-Q-xx` = cannot be written until the
+owner resolves the open question · `deferred-M2` = out of M1 scope per spec note.
+
+---
+
+## 1. US-01 — Profile import (P1 file picker + validator)
+
+RED task: **M1-11** → GREEN: M1-12 (import UI), M1-13 (persistence).
+
+| TC ID    | Test title (`area.behavior.condition`)                             | AC         | Layer                                  | Required fixture                                                          | Status                                                    |
+| -------- | ------------------------------------------------------------------ | ---------- | -------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------- |
+| TC-01-01 | `profileImport.acceptsValidConfig.showsNonSecretSummaryOnly`       | AC-01.1    | unit (+component)                      | `configs/valid-client-config.json`                                        | RED-planned (M1-11)                                       |
+| TC-01-02 | `profileImport.pickerCancel.keepsPreviousProfileNoError`           | AC-01.2    | unit (dialog fake) → L3                | — (fake dialog)                                                           | RED-planned (M1-11, dialog stub)                          |
+| TC-01-03 | `profileImport.rejectsInvalidJson.includesLineColumnNoStack`       | AC-01.3    | unit                                   | `configs/invalid-syntax.json` (error pinned at line 4, col 7)             | RED-planned (M1-11)                                       |
+| TC-01-04 | `profileImport.missingRequiredFields.listsFieldNamesPlainLanguage` | AC-01.4    | unit, **table-driven** over field list | `configs/missing-s3-fields.json`, `configs/missing-credentials.json`      | RED-planned (M1-11)                                       |
+| TC-01-05 | `profileImport.oversizedFile.showsUnsupportedNoContentLogged`      | AC-01.5    | unit                                   | `configs/oversized.json` (> 1 MiB)                                        | RED-planned (M1-11)                                       |
+| TC-01-06 | `profileImport.nonJsonBytesRenamedJson.showsUnsupportedFile`       | AC-01.5    | unit                                   | `configs/pdf-renamed.json` (PDF header bytes)                             | RED-planned (M1-11)                                       |
+| TC-01-07 | `profileImport.validImport.noSecretsReachLogBuffer`                | AC-01.6    | integration                            | canary config + logger capture                                            | RED-planned (M1-18 batch; see §10)                        |
+| TC-01-08 | `profileImport.reimport.replacesProfileAndShowsActiveName`         | AC-01.7    | component → L3                         | two valid configs                                                         | addendum (M1-16 batch)                                    |
+| TC-01-10 | `profileImport.emptyFile.sameNotValidJsonError`                    | US-01 edge | unit                                   | `configs/empty.json` (0 bytes)                                            | RED-planned (M1-11)                                       |
+| TC-01-11 | `profileImport.unreadableFile.cannotReadTryAgainNoCrash`           | US-01 edge | unit (read-error stub)                 | —                                                                         | RED-planned (M1-11)                                       |
+| TC-01-12 | `profileImport.missingS3Credentials.fieldLevelInvalidProfileError` | US-01 edge | unit                                   | `configs/missing-credentials.json`                                        | RED-planned (M1-11)                                       |
+| TC-01-13 | `profileImport.bomOrUnicodeOrLongLine.parsesOrFailWithLocation`    | US-01 edge | unit                                   | `configs/bom-utf8.json`, `configs/unicode.json`, `configs/long-line.json` | RED-planned (M1-11)                                       |
+| TC-01-14 | `profileImport.importWhileRunning.blockedStopFirst`                | US-01 edge | unit/component                         | —                                                                         | **blocked-Q-A** (edge marked "proposed, confirm via Q-A") |
+
+## 2. US-02 — Start / Stop the core (supervisor)
+
+RED task: **M1-14** → GREEN: M1-15. Status-exposure tests (`M1-16` → GREEN M1-17) live in §3 (US-03),
+since status is the owning story.
+
+| TC ID    | Test title                                                             | AC                | Layer            | Required fixture                                         | Status                                                                                    |
+| -------- | ---------------------------------------------------------------------- | ----------------- | ---------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| TC-02-01 | `supervisor.start.validProfileSpawnsCoreRunningWithin1s`               | AC-02.1           | integration      | `fake-core.sh --mode=ready`                              | RED-planned (M1-14)                                                                       |
+| TC-02-02 | `supervisor.stop.terminatesChildPortFreeNoOrphan`                      | AC-02.2           | integration      | `fake-core.sh --mode=ready`                              | RED-planned (M1-14)                                                                       |
+| TC-02-03 | `supervisor.startControl.noProfile.disabledWithImportHint`             | AC-02.3           | component        | —                                                        | addendum (M1-16 batch; §10)                                                               |
+| TC-02-04 | `supervisor.start.binaryMissing.noSpawnClearIntegrityError`            | AC-02.4 (M1 half) | integration      | path to nonexistent binary                               | RED-planned (M1-14)                                                                       |
+| TC-02-05 | `supervisor.start.port10808Occupied.failsNamingPortOrAnnouncesNewPort` | AC-02.5           | integration      | `occupy-port.mjs` (binds 127.0.0.1:10808)                | RED-planned (M1-14) — **policy-agnostic**: silent port change always fails (Q-03 pending) |
+| TC-02-06 | `supervisor.crash.nonzeroExit.goesCoreCrashedWithExitCode`             | AC-02.6           | integration      | `fake-core.sh --mode=exit-nonzero` (exit 1 after stderr) | RED-planned (M1-14)                                                                       |
+| TC-02-07 | `supervisor.start.doubleClick.singleChildProcess`                      | AC-02.7           | integration      | `fake-core.sh --mode=ready`                              | RED-planned (M1-14)                                                                       |
+| TC-02-08 | `supervisor.appQuit.killsCoreBeforeExit`                               | AC-02.8           | integration → L3 | `fake-core.sh --mode=ready`                              | RED-planned (M1-14)                                                                       |
+| TC-02-10 | `supervisor.start.silentCoreNeverReady.timeoutSurfacesReadableError`   | US-02 edge        | integration      | `fake-core.sh --mode=silent`                             | RED-planned (M1-14) — threshold constant `[pending M1-02]` (10 s proposed)                |
+| TC-02-11 | `supervisor.config.relativePaths.resolveFromMainTempNotCwd`            | US-02 edge        | integration      | fake-core printing resolved paths                        | RED-planned (M1-14)                                                                       |
+| TC-02-18 | `supervisor.start.shaMismatch.refusesWithSameWordingAsBinaryMissing`   | AC-02.4 (M2 half) | integration      | pinned-SHA fixture                                       | **deferred-M2** (consistency note in AC-02.4)                                             |
+
+## 3. US-03 — Status surfacing
+
+RED tasks: **M1-04** (status machine, `src/shared/`) → GREEN M1-05; **M1-16** (exposure) → GREEN M1-17.
+
+| TC ID    | Test title                                                    | AC                                | Layer                               | Fixture                            | Status                                                          |
+| -------- | ------------------------------------------------------------- | --------------------------------- | ----------------------------------- | ---------------------------------- | --------------------------------------------------------------- |
+| TC-03-01 | `status.initialState.isStopped`                               | AC-03.3                           | unit                                | —                                  | RED-planned (M1-04)                                             |
+| TC-03-02 | `status.afterStart.isRunningWithin1s`                         | AC-03.2                           | unit (machine) + integration timing | fake-core ready                    | RED-planned (M1-04; timing pin also in TC-NFR3-02)              |
+| TC-03-03 | `status.unexpectedExit.becomesCoreCrashedWithLastError`       | AC-03.4                           | unit                                | —                                  | RED-planned (M1-04)                                             |
+| TC-03-04 | `status.lastErrorDisplayed.selectableNoStackTrace`            | AC-03.5                           | component → L3                      | —                                  | addendum (M1-16 batch) / L3                                     |
+| TC-03-05 | `status.startFromCoreCrashed.recoversToRunning`               | AC-03.6                           | unit                                | —                                  | RED-planned (M1-04)                                             |
+| TC-03-06 | `status.crashWhileWindowHidden.trayReflectsSameState`         | AC-03.7                           | L3/L4                               | fake-core exit-nonzero             | L4 (with M1-22 tray model asserted in unit: TC-05-06)           |
+| TC-03-07 | `status.render.textLabelPresentNeverColorOnly`                | AC-03.1                           | component                           | —                                  | addendum (M1-16 batch)                                          |
+| TC-03-10 | `status.machine.rejectsInvalidTransitions`                    | plan M1-04 explicit               | unit                                | —                                  | RED-planned (M1-04)                                             |
+| TC-03-11 | `status.lastError.mostRecentCrashWins`                        | US-03 edge                        | unit                                | —                                  | RED-planned (M1-04)                                             |
+| TC-03-12 | `status.lastErrorRetention.startDoesNotClearUntilNewError`    | plan M1-04 "last-error retention" | unit                                | —                                  | RED-planned (M1-04)                                             |
+| TC-03-13 | `status.longErrorText.truncatedButCopyGivesFullTextNoSecrets` | US-03 edge                        | component                           | canary in error                    | addendum (M1-16 batch)                                          |
+| TC-03-14 | `status.startTimeout.reportedAsCoreCrashedNotRunning`         | US-03 edge                        | integration                         | `fake-core.sh --mode=silent`       | **blocked** pending M1-02 wording ("core did not become ready") |
+| TC-03-15 | `status.exposure.rendererReceivesAllTransitions`              | M1-16 explicit                    | unit/integration                    | fake-core cycle ready→exit-nonzero | RED-planned (**M1-16**)                                         |
+| TC-03-16 | `status.exposure.rendererReceivesLastErrorString`             | M1-16 explicit                    | unit/integration                    | fake-core stderr text              | RED-planned (**M1-16**)                                         |
+
+## 4. US-04 — System-proxy toggle
+
+RED task: **M1-20** (command construction + platform branching, no shell injection) → GREEN M1-21.
+
+| TC ID    | Test title                                                        | AC         | Layer                        | Fixture                                                       | Status                                                         |
+| -------- | ----------------------------------------------------------------- | ---------- | ---------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------- |
+| TC-04-01 | `systemProxy.macos.buildsNetworksetupArgsForSocks127_0_0_1_10808` | AC-04.1    | unit                         | — (arg builder)                                               | RED-planned (M1-20)                                            |
+| TC-04-02 | `systemProxy.gnome.buildsGsettingsArgsForActiveScheme`            | AC-04.2    | unit                         | —                                                             | RED-planned (M1-20)                                            |
+| TC-04-03 | `systemProxy.toggleOff.emitsExactInverseCommandsFromSnapshot`     | AC-04.3    | unit                         | recorded before-snapshot                                      | RED-planned (M1-20)                                            |
+| TC-04-14 | `systemProxy.realSystem.onOffRoundTripByteForByteRestore`         | AC-04.3    | L4 (macOS + GNOME machines)  | snapshot shell helper                                         | L4 (M1-27; PRD §7 "Proxy safety")                              |
+| TC-04-04 | `systemProxyToggle.coreNotRunning.disabledWithStartHint`          | AC-04.4    | component                    | —                                                             | addendum (M1-16 batch)                                         |
+| TC-04-05 | `systemProxy.unsupportedDesktop.showsManualHintWithExactHostPort` | AC-04.5    | unit                         | DE-detection stub (non-GNOME)                                 | RED-planned (M1-20) — **assert exact wording source** per plan |
+| TC-04-06 | `systemProxy.commandFails.toggleReturnsOffPlainError`             | AC-04.6    | unit/integration (PATH shim) | `fake-networksetup` / `fake-gsettings` with `FAKE_CMD_FAIL=1` | RED-planned (M1-20)                                            |
+| TC-04-07 | `systemProxy.stopOrQuit.revertsOrEmitsPersistentWarning`          | AC-04.7    | unit + L3                    | shim                                                          | RED-planned (M1-20, command half) / L3                         |
+| TC-04-10 | `systemProxy.configValues.noShellInjectionIntoCommands`           | US-04 edge | unit                         | config values with `; rm -rf`, backticks, spaces              | RED-planned (M1-20)                                            |
+| TC-04-11 | `systemProxy.gsettingsSchemaMissing.sameManualHintAsUnsupported`  | US-04 edge | unit                         | shim without schema                                           | RED-planned (M1-20)                                            |
+| TC-04-12 | `systemProxy.userEditsOsProxyMidSession.appDoesNotFightUser`      | US-04 edge | L4                           | —                                                             | **blocked-Q-B**                                                |
+| TC-04-13 | `systemProxy.multipleActiveServices.behaviorPerDeclaredRule`      | US-04 edge | L4                           | —                                                             | **blocked-Q-B**                                                |
+| TC-04-08 | `systemProxy.suspendResumeDeadCore.toggleAndStatusStayConsistent` | US-04 edge | L4                           | —                                                             | L4 (exploratory, M1-27)                                        |
+| TC-04-09 | `systemProxy.claimedSupportMatrix.gnomeOnlyDocumented`            | Q-07       | docs check                   | —                                                             | **blocked-Q-07**                                               |
+
+## 5. US-05 — Tray & window lifecycle
+
+RED task: **M1-22** (lifecycle policy) → GREEN M1-23.
+
+| TC ID    | Test title                                               | AC              | Layer                            | Fixture             | Status                                                 |
+| -------- | -------------------------------------------------------- | --------------- | -------------------------------- | ------------------- | ------------------------------------------------------ |
+| TC-05-01 | `tray.launch.trayReachableWithin3s`                      | AC-05.1         | L3 (NFR-3 measurement)           | —                   | L3 (M1-24; see TC-NFR3-01)                             |
+| TC-05-02 | `tray.windowClose.processAliveCoreKeepsRunning`          | AC-05.2         | policy unit → L3                 | fake-core ready     | RED-planned (M1-22)                                    |
+| TC-05-03 | `tray.reopen.restoresWindowStateNoStaleValues`           | AC-05.3         | L3                               | —                   | L3 (M1-24)                                             |
+| TC-05-04 | `trayMenu.derivedFromState.statusTextPlusActions`        | AC-05.4         | unit (menu model)                | status states table | RED-planned (M1-22)                                    |
+| TC-05-05 | `trayQuit.stopsCoreRevertsProxyExitsFully`               | AC-05.5         | policy unit → L4 (process table) | fake-core ready     | RED-planned (M1-22); L4 confirms no background process |
+| TC-05-06 | `tray.crashWhileMinimized.menuStateUpdatesWithoutWindow` | AC-05.6         | unit (menu model from state)     | —                   | RED-planned (M1-22)                                    |
+| TC-05-10 | `tray.secondInstance.focusesExistingSingleLock`          | US-05 edge      | L3                               | —                   | **blocked-Q-C**                                        |
+| TC-05-11 | `trayBackendUnavailable.fallsBackToWindowWithWarning`    | US-05 edge      | unit                             | tray factory stub   | **blocked-Q-C**                                        |
+| TC-05-12 | `tray.osSessionEnd.noHungChildProcess`                   | US-05 edge      | L4                               | fake-core ready     | L4 (M1-27 checklist)                                   |
+| TC-05-13 | `tray.stateNotConveyedByColorOnly`                       | AC-05.4 / NFR-5 | component                        | —                   | addendum (M1-16 batch)                                 |
+
+## 6. US-06 — Logs view
+
+RED task: **M1-18** (bounded buffer + redaction) → GREEN M1-19.
+
+| TC ID    | Test title                                            | AC                 | Layer              | Fixture                                                  | Status                                                         |
+| -------- | ----------------------------------------------------- | ------------------ | ------------------ | -------------------------------------------------------- | -------------------------------------------------------------- |
+| TC-06-01 | `logs.order.oldestFirstWithTimestamps`                | AC-06.1            | unit               | —                                                        | RED-planned (M1-18)                                            |
+| TC-06-02 | `logs.buffer.at2001Lines.evictsOldestStaysBounded`    | AC-06.2 (NFR-3)    | unit               | —                                                        | RED-planned (M1-18)                                            |
+| TC-06-03 | `logs.redaction.canarySecretsBecomeRedactedInBuffer`  | AC-06.3            | unit + integration | `canary.secrets.txt`, `fake-core.sh --mode=echo-secrets` | RED-planned (M1-18)                                            |
+| TC-06-04 | `logs.errors.noStackTraceNoFullConfigJson`            | AC-06.4            | unit               | injected error with stack + config blob                  | RED-planned (M1-18)                                            |
+| TC-06-05 | `logs.copy.deliversVisibleRedactedTextOnly`           | AC-06.5            | component → L3     | canary lines                                             | addendum (M1-18 batch; §10) / L3                               |
+| TC-06-06 | `logs.restart.bufferIsEmpty`                          | AC-06.6            | L3                 | —                                                        | L3 (M1-24)                                                     |
+| TC-06-07 | `logs.scrollUp.noAutoJumpOnAppend`                    | AC-06.7            | component          | —                                                        | addendum (M1-19 window; §10)                                   |
+| TC-06-10 | `logs.oversizeLine.truncatedAfterRedaction`           | US-06 edge         | unit               | > 4 KiB line containing canary                           | RED-planned (M1-18)                                            |
+| TC-06-11 | `logs.nonUtf8Bytes.replacedWithUfffdRendererSurvives` | US-06 edge         | unit               | `fake-core.sh --mode=nonutf8`                            | RED-planned (M1-18)                                            |
+| TC-06-12 | `logs.flood10k.boundHoldsNoUnboundedGrowth`           | US-06 edge / NFR-3 | unit               | `fake-core.sh --mode=flood`                              | RED-planned (M1-18)                                            |
+| TC-06-13 | `logs.noLogFileWrittenInMvp`                          | Q-05               | integration        | app data dir listing                                     | **blocked-Q-05** (write after owner confirms "in-memory only") |
+
+## 7. US-07 — Secret storage & IPC contract
+
+RED tasks: **M1-08** (safeStorage) → GREEN M1-09; **M1-06** (IPC allowlist) → GREEN M1-07.
+
+| TC ID     | Test title                                                              | AC                      | Layer                             | Fixture                                             | Status                                                |
+| --------- | ----------------------------------------------------------------------- | ----------------------- | --------------------------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| TC-07-01  | `secretStorage.restart.profileStillStartsAfterRelaunch`                 | AC-07.1                 | L3                                | valid config                                        | L3 (M1-24 / M1-27)                                    |
+| TC-07-02  | `secretStorage.atRest.recursiveGrepFindsNoPlaintext`                    | AC-07.2                 | integration                       | canary config                                       | RED-planned (M1-08)                                   |
+| TC-07-03  | `secretStorage.ipcNoChannelReturnsSecretsOrFullConfig`                  | AC-07.3                 | unit/integration                  | —                                                   | RED-planned (M1-06, with TC-IPC-*)                    |
+| TC-07-04  | `secretStorage.encryptionUnavailable.refusesPersistNoPlaintextFallback` | AC-07.4 (NFR-1)         | unit (availability stubbed false) | —                                                   | RED-planned (M1-08)                                   |
+| TC-07-05  | `secretStorage.coreConfigFile.mode0600DeletedOnStop`                    | AC-07.5                 | integration                       | `fake-core.sh --mode=ready` reading its config path | RED-planned (M1-08 store half; M1-14 lifecycle half)  |
+| TC-07-06  | `secretStorage.importStartStop.noSecretsInAnyLogOutput`                 | AC-07.6                 | integration                       | full-loop canary run                                | covered by **TC-NFR2-01** (cross-ref; same execution) |
+| TC-07-07  | `secretStorage.profileRemoved.storeEntryDeletedNotHidden`               | AC-07.7                 | unit/integration                  | canary config                                       | RED-planned (M1-08; store API — UI offering per Q-01) |
+| TC-07-10  | `secretStorage.roundTrip.encryptThenDecryptEqualsOriginal`              | plan M1-08 explicit     | unit                              | canary config                                       | RED-planned (M1-08)                                   |
+| TC-07-11  | `secretStorage.decryptFailure.readableErrorNotACrash`                   | plan M1-08 explicit     | unit                              | tampered blob bytes                                 | RED-planned (M1-08)                                   |
+| TC-07-12  | `secretStorage.keychainDenied.errorWithRetryNeverSilentPlaintextWrite`  | US-07 edge (R-5)        | unit                              | availability/keychain stub                          | RED-planned (M1-08)                                   |
+| TC-07-13  | `secretStorage.corruptStore.damagedProfileReimportMessageNoCrash`       | US-07 edge              | unit                              | `corrupt-store.blob`                                | RED-planned (M1-08)                                   |
+| TC-07-14  | `secretStorage.foreignOsUser.profileAbsentWithReimportGuidance`         | US-07 edge              | L4                                | second OS user account                              | L4 (M1-27; keychain non-portability)                  |
+| TC-07-15  | `secretStorage.coreConfigPath.neverAppearsInLogs`                       | NFR-1 last bullet       | integration                       | grep of temp path in buffer                         | RED-planned (M1-14 batch)                             |
+| TC-IPC-01 | `ipc.allowlist.unknownChannelFromRendererFails`                         | M1-06 explicit; AC-07.3 | unit/integration                  | —                                                   | RED-planned (M1-06)                                   |
+| TC-IPC-02 | `ipc.allowlist.secretBearingChannelUnreachableFromRenderer`             | M1-06 explicit; AC-07.3 | unit/integration                  | —                                                   | RED-planned (M1-06)                                   |
+
+## 8. Cross-cutting NFR pins (PRD §5 / §7)
+
+| TC ID      | Test title                                                             | NFR / criterion                 | Layer                                | Fixture                                            | RED task                                                                                                        |
+| ---------- | ---------------------------------------------------------------------- | ------------------------------- | ------------------------------------ | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| TC-NFR2-01 | `redaction.fullLoopGrep.zeroCanariesInBufferDomDataDirStdout`          | NFR-2 + PRD §7 "Secret hygiene" | integration (+L3 for DOM)            | canary config, fake-core echo-secrets              | RED-planned (M1-18; DOM half at M1-24)                                                                          |
+| TC-NFR3-01 | `nfr.startup.windowOrTrayReadyUnder3sNoNetwork`                        | NFR-3                           | L3                                   | —                                                  | L3 (M1-24)                                                                                                      |
+| TC-NFR3-02 | `supervisor.statusReflectedWithin1sOfProcessEvent`                     | NFR-3                           | integration                          | fake-core lifecycle                                | RED-planned (M1-14)                                                                                             |
+| TC-NFR4-01 | `nfr.offline.launchAndFailDistinctMessageNoStartupNetwork`             | NFR-4                           | unit + integration                   | network stub rejecting                             | RED-planned (M1-14 batch; start-failure wording row also in TC-NFR5-01)                                         |
+| TC-NFR5-01 | `errorWording.table.everyUserVisibleErrorHasTitleCauseNextStepNoStack` | NFR-5                           | unit, **table-driven** (strategy §7) | all invalid-config fixtures + each failure trigger | RED-planned: core rows with **M1-11**; new rows added in every subsequent RED task (M1-14, M1-18, M1-20, M1-08) |
+| TC-NFR5-02 | `nfr.errorsInUi.copyableTextStatusTextLabelsKeyboardReachable`         | NFR-5 UI half                   | L3/L4                                | —                                                  | L3 (M1-24) / L4 (M1-27)                                                                                         |
+| TC-E2E-01  | `smoke.importStartRunningLogsStopStopped`                              | M1-24 explicit                  | L3 Playwright-Electron               | `valid-client-config.json`, fake-core              | RED-planned (**M1-24**)                                                                                         |
+
+## 9. Required fixtures (synthetic only — strategy §1)
+
+### 9.1 Client-config JSON files — `tests/fixtures/configs/`
+
+| File                                                                                             | Content                                                                                                                                                                         | Size    | Used by                                            |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------- |
+| `valid-client-config.json`                                                                       | syntactically + semantically valid; endpoint `https://s3.example.com`, bucket `example-bucket`, region `us-east-1`, **canary credentials** (see 9.3), inbound `127.0.0.1:10808` | small   | TC-01-01/07/08, TC-07-01/02, TC-NFR2-01, TC-E2E-01 |
+| `invalid-syntax.json`                                                                            | deliberate parse error pinned at **line 4, column 7**                                                                                                                           | small   | TC-01-03, TC-NFR5-01                               |
+| `empty.json`                                                                                     | 0 bytes                                                                                                                                                                         | 0       | TC-01-10                                           |
+| `missing-s3-fields.json`                                                                         | valid JSON, S3 endpoint/bucket/keys absent                                                                                                                                      | small   | TC-01-04, TC-NFR5-01                               |
+| `missing-credentials.json`                                                                       | all structural fields present, credential values absent                                                                                                                         | small   | TC-01-04, TC-01-12                                 |
+| `oversized.json`                                                                                 | > 1 MiB (bulk filler keys)                                                                                                                                                      | > 1 MiB | TC-01-05                                           |
+| `pdf-renamed.json`                                                                               | PDF magic bytes (`%PDF-1.4…`) with `.json` name                                                                                                                                 | small   | TC-01-06                                           |
+| `bom-utf8.json`, `unicode.json` (Cyrillic field values), `long-line.json` (single line > 100 kB) | parse-tolerance edge inputs                                                                                                                                                     | varies  | TC-01-13                                           |
+| `corrupt-store.blob`                                                                             | random/tampered bytes posing as encrypted store                                                                                                                                 | small   | TC-07-13                                           |
+
+Field expectations for `valid-client-config.json` and the error wording of each invalid file are finalized
+against `docs/analysis/` S3 field list **[pending M1-02]** — file names/IDs above do not change.
+
+### 9.2 Fake core binary + OS-command shims — `tests/fixtures/bin/`
+
+**`fake-core.sh`** — single POSIX `sh` script (works on macOS and Linux CI), mode selected by
+`FAKE_CORE_MODE`, port by `FAKE_CORE_PORT` (default 10808). One fixture file covers the plan's
+"sleeps / exits-nonzero / prints to stderr" requirement plus every supervisor path:
+
+| Mode           | Behavior                                                                                   | Simulates           | Used by                                                 |
+| -------------- | ------------------------------------------------------------------------------------------ | ------------------- | ------------------------------------------------------- |
+| `ready`        | prints `ready` to stdout, binds `127.0.0.1:$FAKE_CORE_PORT`, sleeps until SIGTERM, exits 0 | healthy core        | TC-02-01/02/07/08, TC-07-05/15, TC-05-02/05, TC-NFR3-02 |
+| `exit-nonzero` | prints error to stderr, sleeps ~100 ms, **exits 1**                                        | crash               | TC-02-06, TC-03-03, TC-03-15/16                         |
+| `silent`       | prints nothing, never binds, sleeps forever                                                | never-ready core    | TC-02-10, TC-03-14                                      |
+| `sleep`        | no output, no bind, sleeps (used to test stop timing/kill)                                 | idle child          | TC-02-02 variants                                       |
+| `echo-secrets` | **cats its own config file to stdout** (contains canaries)                                 | core leaking config | TC-06-03, TC-NFR2-01, TC-07-06                          |
+| `flood`        | prints 10 000 lines as fast as possible                                                    | log flood           | TC-06-12                                                |
+| `nonutf8`      | writes invalid UTF-8 bytes to stdout                                                       | corrupt output      | TC-06-11                                                |
+
+Supporting fixtures:
+
+| File                  | Purpose                                                                                           | Used by        |
+| --------------------- | ------------------------------------------------------------------------------------------------- | -------------- |
+| `occupy-port.mjs`     | binds and holds `127.0.0.1:10808`                                                                 | TC-02-05       |
+| `fake-networksetup`   | PATH shim: records argv to a file, returns canned `-get*proxy` output; `FAKE_CMD_FAIL=1` → exit 1 | TC-04-01/06/07 |
+| `fake-gsettings`      | same contract for `gsettings` (incl. "schema missing" canned failure)                             | TC-04-02/06/11 |
+| `network-snapshot.sh` | L4 helper: dumps proxy settings before/after for byte-for-byte diff                               | TC-04-14       |
+
+### 9.3 Secret canaries — `tests/fixtures/secrets/`
+
+`canary.secrets.txt` — one clearly-fake secret per line, embedded into `valid-client-config.json` and the
+`echo-secrets` fake: `EXAMPLEACCESSKEYID01`, `EXAMPLESECRETKEY0123456789`, `EXAMPLESESSIONTOKEN0001`,
+`example-bucket-password`. **No real or realistic credentials** (rule: synthetic data only). The same file is
+the input to every grep test (NFR-2) — adding a line here automatically extends coverage.
+
+## 10. RED tasks → test cases → GREEN tasks (prerequisite matrix, aligned with `docs/plans/m1-mvp.md`)
+
+| RED task (plan)                                 | Test cases it must contain (prereq for the GREEN task after it)                                                                                                   | GREEN task      | Phase |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | ----- |
+| **M1-04** status machine                        | TC-03-01, TC-03-02 (machine half), TC-03-03, TC-03-05, TC-03-10, TC-03-11, TC-03-12                                                                               | M1-05           | B     |
+| **M1-06** IPC contract                          | TC-IPC-01, TC-IPC-02, TC-07-03                                                                                                                                    | M1-07           | B     |
+| **M1-08** secret storage                        | TC-07-10, TC-07-02, TC-07-04, TC-07-11, TC-07-12, TC-07-13, TC-07-07, TC-07-05 (store half)                                                                       | M1-09           | C     |
+| **M1-11** validator                             | TC-01-01, TC-01-02, TC-01-03, TC-01-04, TC-01-05, TC-01-06, TC-01-10, TC-01-11, TC-01-12, TC-01-13 + `errorWording` core rows (TC-NFR5-01)                        | M1-12           | D     |
+| **M1-14** supervisor + stub binary              | TC-02-01, TC-02-02, TC-02-04, TC-02-05, TC-02-06, TC-02-07, TC-02-08, TC-02-10, TC-02-11, TC-07-05 (lifecycle half), TC-07-15, TC-NFR3-02, TC-NFR4-01             | M1-15           | E     |
+| **M1-16** status exposure                       | TC-03-15, TC-03-16 + addendum batch (marked `addendum` in §1–§6): TC-01-08, TC-02-03, TC-03-04, TC-03-07, TC-03-13, TC-04-04, TC-05-13                            | M1-17           | E     |
+| **M1-18** logs buffer + redaction               | TC-06-01, TC-06-02, TC-06-03, TC-06-04, TC-06-10, TC-06-11, TC-06-12, TC-01-07, TC-NFR2-01 (non-DOM half), TC-NFR5-01 (redaction/error rows) + addendum: TC-06-05 | M1-19           | F     |
+| **M1-20** proxy commands                        | TC-04-01, TC-04-02, TC-04-03, TC-04-05, TC-04-06, TC-04-07 (command half), TC-04-10, TC-04-11                                                                     | M1-21           | G     |
+| **M1-22** tray/lifecycle policy                 | TC-05-02, TC-05-04, TC-05-05, TC-05-06                                                                                                                            | M1-23           | H     |
+| **M1-24** E2E smoke (QA writes after all GREEN) | TC-E2E-01, TC-05-01/03, TC-06-06, TC-07-01, TC-NFR3-01, TC-NFR2-01 (DOM half), TC-NFR5-02 (DOM half)                                                              | — (gates M1-25) | I     |
+
+Every GREEN task above may not open until its RED column exists **and** the RED report (files, counts, exact
+failing output, per-strategy §5.1) has been delivered.
+
+## 11. Open-question blockers (nothing invented — owner decides)
+
+| Open question                                                                                                          | Source                          | Blocked TCs                                               | Behavior while blocked                                                          |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Q-A single vs. multiple profile / import-while-running                                                                 | US-01, PRD                      | TC-01-14                                                  | not written                                                                     |
+| Q-03 port 10808 occupied: fail vs. auto-pick                                                                           | PRD                             | TC-02-05                                                  | written **policy-agnostic** (silent port change fails either way) — RED allowed |
+| Q-05 no on-disk log file in MVP                                                                                        | US-06                           | TC-06-13                                                  | not written until confirmed                                                     |
+| Q-07 / Q-B GNOME-only claim; multi-service + mid-session edits                                                         | US-04, PRD                      | TC-04-09, TC-04-12, TC-04-13                              | not written; AC-04.5 manual hint itself is unconditional → TC-04-05 proceeds    |
+| Q-C single-instance, hidden-to-tray every launch, tray backend fallback                                                | US-05                           | TC-05-10, TC-05-11                                        | not written                                                                     |
+| Q-09 bundled vs. downloaded binary                                                                                     | PRD                             | affects TC-02-04 fixture path only                        | proceeds; fixture points at configured binary path                              |
+| start-timeout threshold (10 s proposed), "core did not become ready" wording, secret field list, IPC channel allowlist | US-02/US-03 edges, NFR-2, M1-02 | TC-02-10 threshold, TC-03-14, NFR-2 field table, TC-IPC-* | **M1-02 must land first** (plan gate: M1-04+ blocked until M1-02 `done`)        |
+
+## 12. Plan gaps reported to Project Manager (QA found, not fixed)
+
+1. **No QA RED task covers two GREEN behaviors**: M1-17's "Start/Stop button disabled/busy states" and
+   M1-19's "logs copy/scroll" have no preceding RED task. QA proposes the **addendum batches** marked
+   `addendum` in §1–§6 (folded into M1-16 and M1-18 respectively) — needs PM acknowledgment in `m1-mvp.md`.
+2. `errorWording` table growth (NFR-5) is not tied to a plan task; QA will extend the table inside **each**
+   RED task so a new user-visible error without wording fails by construction (strategy §7).
+3. `docs/analysis/` (M1-02) is still absent — blocks M1-04 onward per the plan gate; this plan's
+   `[pending M1-02]` rows must be finalized before the first RED report.
+
+## 13. Count summary (current draft)
+
+| Story / area            | TCs    | RED-planned | addendum | L3/L4  | blocked / deferred / cross-ref      |
+| ----------------------- | ------ | ----------- | -------- | ------ | ----------------------------------- |
+| US-01                   | 13     | 11          | 1        | 0      | 1 (Q-A)                             |
+| US-02                   | 11     | 9           | 1        | 0      | 1 (deferred-M2)                     |
+| US-03                   | 14     | 9           | 3        | 1      | 1 (pending M1-02)                   |
+| US-04                   | 14     | 8           | 1        | 2      | 3 (Q-B/Q-07)                        |
+| US-05                   | 10     | 4           | 1        | 3      | 2 (Q-C)                             |
+| US-06                   | 11     | 7           | 2        | 1      | 1 (Q-05)                            |
+| US-07 + IPC             | 15     | 12          | 0        | 2      | 1 (cross-ref TC-07-06 → TC-NFR2-01) |
+| NFR cross-cutting + E2E | 7      | 4           | 0        | 3      | 0                                   |
+| **Total**               | **95** | **64**      | **9**    | **12** | **10**                              |
+
+_Statuses are expectations at plan time; actual RED/GREEN results are recorded per report per strategy §10._
