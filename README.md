@@ -4,7 +4,7 @@ Desktop client (macOS + Linux) for the fedarisha S3 tunnel: traffic is exchanged
 as objects through an S3-compatible bucket, while a supervised Xray-core binary
 (`Fedarisha/Xray-core-fedarisha`) provides the local SOCKS proxy.
 
-**Status:** M0 — scaffold in progress. Not usable yet.
+**Status:** M0 done (scaffold, CI green on both OS legs, security spot-check PASS). M1 — MVP core loop in progress. Not usable yet.
 
 ## Idea in one line
 

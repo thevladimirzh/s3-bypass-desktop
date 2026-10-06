@@ -19,14 +19,29 @@ function createWindow(): BrowserWindow {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) {
+    if (url.startsWith('https://')) {
       void shell.openExternal(url);
     }
     return { action: 'deny' };
   });
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(process.env.ELECTRON_RENDERER_URL);
+  // Navigation guard (M0-19 / S3-1): the window may only stay on the local
+  // renderer — the dev server URL in dev or a local file when packaged.
+  // Remote navigation would keep the preload attached, so it is denied.
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  const isAllowedNavigation = (url: string): boolean =>
+    url.startsWith('file://') || (devUrl !== undefined && url === devUrl);
+  win.webContents.on('will-navigate', (event, url) => {
+    if (!isAllowedNavigation(url)) event.preventDefault();
+  });
+  win.webContents.on('will-redirect', (event, url) => {
+    if (!isAllowedNavigation(url)) event.preventDefault();
+  });
+
+  // M0-19 / S4-3: never load a dev URL in a packaged app even if the env
+  // var was inherited from the environment.
+  if (!app.isPackaged && devUrl) {
+    void win.loadURL(devUrl);
   } else {
     void win.loadFile(join(__dirname, '../renderer/index.html'));
   }

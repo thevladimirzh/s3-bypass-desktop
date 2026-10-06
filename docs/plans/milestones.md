@@ -8,14 +8,14 @@ Source of truth: `BRIEF.md` §8. Owner: Project Manager. All artifacts in Englis
 
 ## Current status (as of this writing)
 
-| Milestone                        | Status                                                                                                                                                                           |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **M0 — Repo scaffold**           | **IN PROGRESS** — planning docs exist (`docs/plans/`); no scaffold files committed yet (repo currently contains only `BRIEF.md` and `README.md`). All M0 build tasks are `todo`. |
-| **M1 — MVP core loop**           | NOT STARTED — blocked on M0.                                                                                                                                                     |
-| **M2 — Packaging & pinned core** | NOT STARTED — blocked on M1.                                                                                                                                                     |
-| **M3 — Polish + beta**           | NOT STARTED — blocked on M2.                                                                                                                                                     |
+| Milestone                        | Status                                                                                                                                                                                                                     |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M0 — Repo scaffold**           | **DONE** (2026-10-07) — scaffold + docs committed; CI green on ubuntu+macos (run `37534079151` and later); M0-19 security spot-check PASS (no S1/S2). Evidence: `docs/qa/m0-verification.md`, `docs/qa/security-m0-19.md`. |
+| **M1 — MVP core loop**           | **NEXT** — Phase A done (M1-01..M1-03 delivered); Phase B opens with M1-04 RED.                                                                                                                                            |
+| **M2 — Packaging & pinned core** | NOT STARTED — blocked on M1.                                                                                                                                                                                               |
+| **M3 — Polish + beta**           | NOT STARTED — blocked on M2.                                                                                                                                                                                               |
 
-Honesty note: "in progress" for M0 means _planning done, execution not yet started_. The board in `docs/plans/m0-scaffold.md` is the authoritative checklist; a milestone flips to `done` only when its Definition of Done below is fully met — stale `done` is a bug.
+Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative checklist; a milestone flips to `done` only when its Definition of Done below is fully met — stale `done` is a bug. M0 flipped 2026-10-07: DoD 1–6 evidenced in `docs/qa/m0-verification.md` and `docs/qa/security-m0-19.md`.
 
 ---
 
@@ -175,9 +175,9 @@ Cross-milestone hard dependencies:
 
 ## Risks & blockers (watch list)
 
-| ID  | Item                                                         | Impact                                                   | Owner                              | State                   |
-| --- | ------------------------------------------------------------ | -------------------------------------------------------- | ---------------------------------- | ----------------------- |
-| R-1 | No core binary available to M1 supervisor until pinning (M2) | Start/Stop tests need a stub or dev-provided binary      | project-manager / devops           | open — plan: stub in M1 |
-| R-2 | Apple Developer account (notarization) undecided             | M2 macOS distribution limited to unsigned + instructions | owner (user)                       | open, owner call        |
-| R-3 | `docs/product/` and `docs/analysis/` do not exist yet        | M1 QA cannot derive tests without specs                  | product-manager / business-analyst | open — first M1 tasks   |
-| R-4 | Repo has no code yet; CI config unverified                   | M0 estimates may shift once toolchain chosen             | project-manager                    | open — monitor          |
+| ID  | Item                                                         | Impact                                                   | Owner                              | State                                                      |
+| --- | ------------------------------------------------------------ | -------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------- |
+| R-1 | No core binary available to M1 supervisor until pinning (M2) | Start/Stop tests need a stub or dev-provided binary      | project-manager / devops           | open — plan: stub in M1                                    |
+| R-2 | Apple Developer account (notarization) undecided             | M2 macOS distribution limited to unsigned + instructions | owner (user)                       | open, owner call                                           |
+| R-3 | `docs/product/` and `docs/analysis/` do not exist yet        | M1 QA cannot derive tests without specs                  | product-manager / business-analyst | open — first M1 tasks                                      |
+| R-4 | Repo has no code yet; CI config unverified                   | M0 estimates may shift once toolchain chosen             | project-manager                    | closed — CI verified green (37534079151, both matrix legs) |

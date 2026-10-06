@@ -84,8 +84,8 @@ cleanly.
   green** for M1 RED work to begin after the M1-02 analysis gate.
 - **M0 DoD caveats:** both flip blockers closed after the snapshot — G-1 (renderer render test +
   jsdom/RTL installed, 6/6 green) and G-3 (CI green on `main`: runs `37534079151` matrix, `37534224910`).
-  One transient `format:check` red was seen and resolved concurrently (G-4). Remaining gate for M0-20:
-  security spot-check M0-19.
+  One transient `format:check` red was seen and resolved concurrently (G-4). M0-19 security spot-check
+  returned **PASS (no S1/S2)** — findings fixed or tracked, see `security-m0-19.md`. All M0-20 gates met.
 - Secure defaults: **9/9 checks PASS** at snapshot time (check #3 was red 1 minute earlier and was fixed
   during this pass — recorded for full honesty).
 
