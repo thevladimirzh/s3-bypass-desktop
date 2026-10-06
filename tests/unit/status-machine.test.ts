@@ -61,11 +61,11 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
 import {
-  INITIAL_STATUS,
-  transition,
   type CoreEvent,
   type CoreState,
+  INITIAL_STATUS,
   type StatusSnapshot,
+  transition,
   type TransitionResult,
 } from '../../src/shared/status-machine';
 
@@ -87,19 +87,12 @@ function expectOk(result: TransitionResult): StatusSnapshot {
 }
 
 function expectRejected(result: TransitionResult, context: string): AppErrorShape {
-  expect(
-    result.ok,
-    `${context}: expected an error result for an illegal transition`,
-  ).toBe(false);
+  expect(result.ok, `${context}: expected an error result for an illegal transition`).toBe(false);
   if (result.ok) {
     throw new Error('unreachable: expected the error branch of TransitionResult');
   }
-  expect(typeof result.error.code, `${context}: error.code must be a string`).toBe(
-    'string',
-  );
-  expect(result.error.code.length, `${context}: error.code must not be empty`).toBeGreaterThan(
-    0,
-  );
+  expect(typeof result.error.code, `${context}: error.code must be a string`).toBe('string');
+  expect(result.error.code.length, `${context}: error.code must not be empty`).toBeGreaterThan(0);
   expect(
     JSON.stringify(result.error),
     `${context}: rejected-transition error must not contain a stack trace`,
@@ -208,18 +201,8 @@ describe('status.machine.rejectsInvalidTransitions (TC-03-10, data-flows §2.3 g
       'stop',
       'Stop is accepted only from running; no-op in crashed rejected (§2.3 guard 2)',
     ],
-    [
-      'StoppedReady',
-      'stopped',
-      'ready',
-      'cannot reach running while skipping starting (§2.3)',
-    ],
-    [
-      'StoppedStop',
-      'stopped',
-      'stop',
-      'Stop in stopped is a rejected no-op (§2.3 guard 2)',
-    ],
+    ['StoppedReady', 'stopped', 'ready', 'cannot reach running while skipping starting (§2.3)'],
+    ['StoppedStop', 'stopped', 'stop', 'Stop in stopped is a rejected no-op (§2.3 guard 2)'],
     [
       'RunningStart',
       'running',
@@ -238,12 +221,7 @@ describe('status.machine.rejectsInvalidTransitions (TC-03-10, data-flows §2.3 g
       'ready',
       'duplicate readiness; running → running is not a transition (§2.3)',
     ],
-    [
-      'StartingStop',
-      'starting',
-      'stop',
-      'only running → stopping accepts Stop (§2.3 guard 2)',
-    ],
+    ['StartingStop', 'starting', 'stop', 'only running → stopping accepts Stop (§2.3 guard 2)'],
     [
       'StoppingStart',
       'stopping',
@@ -272,7 +250,11 @@ describe('lastError lifecycle (FR-17, FR-27, data-flows §2.3)', () => {
   it('status.lastError.mostRecentCrashWins', () => {
     // TC-03-11, FR-27: on two consecutive crashes the most recent error wins.
     let snapshot = expectOk(
-      transition(expectOk(transition(expectOk(transition(INITIAL_STATUS, 'start')), 'ready')), 'crash', exitError),
+      transition(
+        expectOk(transition(expectOk(transition(INITIAL_STATUS, 'start')), 'ready')),
+        'crash',
+        exitError,
+      ),
     );
     expect(snapshot.lastError).toEqual(exitError);
 
@@ -287,7 +269,11 @@ describe('lastError lifecycle (FR-17, FR-27, data-flows §2.3)', () => {
     // TC-03-12: a crash sets lastError; the recovery start (crashed → starting)
     // retains it — start itself never clears the error.
     let snapshot = expectOk(
-      transition(expectOk(transition(expectOk(transition(INITIAL_STATUS, 'start')), 'ready')), 'crash', exitError),
+      transition(
+        expectOk(transition(expectOk(transition(INITIAL_STATUS, 'start')), 'ready')),
+        'crash',
+        exitError,
+      ),
     );
     expect(snapshot.lastError).toEqual(exitError);
 
@@ -300,7 +286,11 @@ describe('lastError lifecycle (FR-17, FR-27, data-flows §2.3)', () => {
     // data-flows §2.3: "lastError retained from crashed, cleared only on
     // successful → running". Not cleared by stop/stopped afterwards either.
     let snapshot = expectOk(
-      transition(expectOk(transition(expectOk(transition(INITIAL_STATUS, 'start')), 'ready')), 'crash', exitError),
+      transition(
+        expectOk(transition(expectOk(transition(INITIAL_STATUS, 'start')), 'ready')),
+        'crash',
+        exitError,
+      ),
     );
     snapshot = expectOk(transition(snapshot, 'start'));
     expect(snapshot.lastError).toEqual(exitError);
@@ -338,9 +328,7 @@ describe('typing contract (string-literal unions make misuse a compile error)', 
     expectTypeOf<CoreState>().toEqualTypeOf<
       'stopped' | 'starting' | 'running' | 'stopping' | 'crashed'
     >();
-    expectTypeOf<CoreEvent>().toEqualTypeOf<
-      'start' | 'ready' | 'stop' | 'stopped' | 'crash'
-    >();
+    expectTypeOf<CoreEvent>().toEqualTypeOf<'start' | 'ready' | 'stop' | 'stopped' | 'crash'>();
     expectTypeOf<TransitionResult['ok']>().toEqualTypeOf<boolean>();
   });
 });
