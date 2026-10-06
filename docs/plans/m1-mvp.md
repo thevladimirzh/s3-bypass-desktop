@@ -1,6 +1,6 @@
 # M1 — MVP core loop: task breakdown
 
-Milestone: **M1** (BRIEF §2) · Owner: Project Manager · Status: **NOT STARTED** (blocked on M0)
+Milestone: **M1** (BRIEF §2) · Owner: Project Manager · Status: **PHASE A DONE** (M1-01..M1-03 delivered; Phase B opens when M0-20 flips M0)
 Parent plan: `docs/plans/milestones.md`
 
 **Legend:** task ID · owner · size (S ≈ 0.5 d, M ≈ 0.5–1.5 d, L ≈ 2+ d) · deps · status
@@ -19,16 +19,16 @@ dependencies are satisfied before it opens.
 
 ## Phase A — Spec & analysis (delivery flow: spec → analysis)
 
-- [ ] **M1-01** · product-manager · **M** · deps: — · `todo`
+- [x] **M1-01** · product-manager · **M** · deps: — · `done`
       User stories in `docs/product/` for all 7 BRIEF §2 items, each with
       acceptance criteria (profile import, start/stop, status, system proxy,
       tray, logs, secret storage). Includes the "no raw stack traces" and
       "never secrets in logs/renderer" rules as explicit ACs.
-- [ ] **M1-02** · business-analyst · **M** · deps: M1-01 · `todo`
+- [x] **M1-02** · business-analyst · **M** · deps: M1-01 · `done`
       `docs/analysis/`: requirements, business rules, data flows, and the
       **IPC contract** (channel allowlist, what crosses main↔renderer, what must
       _never_ cross it — secrets stay in `main`). S3 config field list defined here.
-- [ ] **M1-03** · qa · **S** · deps: M1-02 · `todo`
+- [x] **M1-03** · qa · **S** · deps: M1-02 · `done`
       Test strategy for M1 in `docs/qa/`: unit (Vitest), integration (supervisor
       with stub binary), smoke E2E (Playwright, later in M1-24). Coverage targets
       for status machine, redaction, validator.
