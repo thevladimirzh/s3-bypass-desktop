@@ -1,0 +1,17 @@
+appId: io.github.thevladimirzh.s3-bypass-desktop
+productName: S3 Bypass Desktop
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+npmRebuild: false
+mac:
+  category: public.app-category.utilities
+  target:
+    - dmg
+linux:
+  category: Network
+  target:
+    - AppImage
+    - deb

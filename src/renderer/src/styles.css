@@ -1,0 +1,40 @@
+:root {
+  color-scheme: dark;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+  background: #101418;
+  color: #e7edf3;
+}
+
+.shell {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.tagline {
+  color: #9fb0c0;
+}
+
+.status {
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #2a3541;
+  border-radius: 8px;
+  background: #161c22;
+}
+
+footer {
+  margin-top: 3rem;
+  font-size: 0.85rem;
+  color: #6b7a8a;
+}
