@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+
 import type { PingResult } from '../../shared/ipc';
 
 export default function App() {

@@ -1,5 +1,7 @@
-import { BrowserWindow, app, ipcMain, shell } from 'electron';
 import { join } from 'node:path';
+
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
+
 import { APP_NAME, DEFAULT_SOCKS_PORT, IPC_PING } from '../shared/constants';
 import type { PingResult } from '../shared/ipc';
 
@@ -12,7 +14,7 @@ function createWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
   });
 

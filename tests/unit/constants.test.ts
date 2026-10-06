@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { APP_NAME, DEFAULT_SOCKS_PORT, IPC_PING } from '../../src/shared/constants';
 
 describe('shared constants', () => {

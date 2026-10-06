@@ -87,7 +87,7 @@ dependencies are satisfied before it opens.
       the stored profile; local SOCKS inbound `127.0.0.1:10808`.
 - [ ] **M1-16** · qa · **S** · deps: M1-14 · `todo`
       **RED:** status exposure tests — renderer receives `running/stopped/
-  core-crashed` transitions and the last error string.
+core-crashed` transitions and the last error string.
 - [ ] **M1-17** · developer · **M** · deps: M1-15, M1-16, M1-07 · `todo`
       **GREEN:** status wiring end-to-end (supervisor → IPC → UI), Start/Stop
       button behavior incl. disabled/busy states.
