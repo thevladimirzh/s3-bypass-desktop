@@ -1,13 +1,64 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 import { IPC_PING } from '../shared/constants';
-import type { S3BypassApi } from '../shared/ipc';
+import type {
+  IpcInvokeChannel,
+  IpcPushChannel,
+  LogLine,
+  LogsView,
+  OperationResult,
+  PingResult,
+  ProfileImportResult,
+  ProfileRemovalResult,
+  ProfileView,
+  ProxyState,
+  S3BypassApi,
+  StatusSnapshot,
+} from '../shared/ipc';
 
-// Renderer-only access pattern: the renderer may call exactly the methods
-// exposed on this object — it never touches ipcRenderer directly. The full
-// IPC contract is defined by docs/analysis/data-flows.md (M1 gate).
+/**
+ * Invokes an allowlisted R→M channel (FR-61): the channel argument is
+ * compile-time constrained to `IpcInvokeChannel`, so an arbitrary channel
+ * string cannot be forwarded from here. The resolved value is main's
+ * handler payload, untouched (FR-62 — payload types are the §4.2 contract
+ * each `ipcMain.handle` is declared to return).
+ */
+function invoke<T>(channel: IpcInvokeChannel, ...args: unknown[]): Promise<T> {
+  return ipcRenderer.invoke(channel, ...args);
+}
+
+/**
+ * Subscribes to an allowlisted M→R push channel (FR-63): Electron delivers
+ * `(event, payload)`; the event is consumed here and the renderer listener
+ * receives main's payload unchanged. Returns the unsubscribe function so the
+ * renderer can detach again.
+ */
+function subscribe<T>(channel: IpcPushChannel, listener: (payload: T) => void): () => void {
+  const wrapped = (_event: IpcRendererEvent, payload: T): void => listener(payload);
+  ipcRenderer.on(channel, wrapped);
+  return () => {
+    ipcRenderer.removeListener(channel, wrapped);
+  };
+}
+
+// Renderer-only access pattern: the renderer may call exactly the members
+// exposed on this object — it never touches ipcRenderer directly. The surface
+// mirrors the §4.2 channel allowlist 1:1 (FR-61); docs/analysis/data-flows.md
+// §4 defines what may cross the bridge (and what never may, FR-64).
 const api: S3BypassApi = {
-  ping: () => ipcRenderer.invoke(IPC_PING),
+  ping: () => invoke<PingResult>(IPC_PING),
+  importProfileDialog: () => invoke<ProfileImportResult>('profile:import-dialog'),
+  getProfile: () => invoke<ProfileView>('profile:get'),
+  removeProfile: () => invoke<ProfileRemovalResult>('profile:remove'),
+  startCore: () => invoke<OperationResult>('core:start'),
+  stopCore: () => invoke<OperationResult>('core:stop'),
+  getStatus: () => invoke<StatusSnapshot>('status:get'),
+  getLogs: () => invoke<LogsView>('logs:get'),
+  clearLogs: () => invoke<{ ok: true }>('logs:clear'),
+  getProxy: () => invoke<ProxyState>('proxy:get'),
+  setProxy: (request) => invoke<OperationResult>('proxy:set', request),
+  onStatusChanged: (listener) => subscribe<StatusSnapshot>('status:changed', listener),
+  onLogLine: (listener) => subscribe<LogLine>('log:line', listener),
   versions: {
     electron: process.versions.electron ?? 'unknown',
     chrome: process.versions.chrome ?? 'unknown',
