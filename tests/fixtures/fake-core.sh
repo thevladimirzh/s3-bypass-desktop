@@ -22,6 +22,16 @@
 #                     replaced by exit 3, DV-22)
 #     silent          no output, never binds, sleep until killed (FR-20
 #                     start-timeout path)
+#     echo-secrets    cat $FAKE_CORE_CONFIG (required, else exit 64) to
+#                     stdout, exit 0 — the core echoing its own config
+#                     (M1-18 batch, §9.2; NFR-2 leak for TC-06-03 /
+#                     TC-NFR2-01 / TC-07-06)
+#     flood           $FAKE_CORE_FLOOD_LINES numbered stdout lines
+#                     (default 10 000), exit 0 — log-flood bound for
+#                     TC-06-12 (M1-18 batch)
+#     nonutf8         one stdout line containing invalid UTF-8 bytes
+#                     (\377\376), exit 0 — non-UTF-8 core output for
+#                     TC-06-11 (M1-18 batch)
 #     anything else   diagnostic on stderr, exit 64 (fixture misuse)
 #
 #   argv     every invocation appends `### pid=$$` + one `arg=<value>` line per
@@ -116,6 +126,27 @@ case "$mode" in
     ;;
   silent)
     exec sleep 86400
+    ;;
+  echo-secrets)
+    if [ -z "${FAKE_CORE_CONFIG:-}" ]; then
+      printf 'fake-core: echo-secrets requires FAKE_CORE_CONFIG\n' >&2
+      exit 64
+    fi
+    cat "$FAKE_CORE_CONFIG"
+    exit 0
+    ;;
+  flood)
+    total=${FAKE_CORE_FLOOD_LINES:-10000}
+    i=1
+    while [ "$i" -le "$total" ]; do
+      printf 'fake-core: flood line %s\n' "$i"
+      i=$((i + 1))
+    done
+    exit 0
+    ;;
+  nonutf8)
+    printf 'fake-core: raw bytes \377\376 follow\n'
+    exit 0
     ;;
   *)
     printf 'fake-core: unknown mode: %s\n' "$mode" >&2
