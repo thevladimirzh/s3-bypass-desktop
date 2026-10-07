@@ -58,7 +58,20 @@ const api: S3BypassApi = {
   getProxy: () => invoke<ProxyState>('proxy:get'),
   setProxy: (request) => invoke<OperationResult>('proxy:set', request),
   onStatusChanged: (listener) => subscribe<StatusSnapshot>('status:changed', listener),
-  onLogLine: (listener) => subscribe<LogLine>('log:line', listener),
+  // S5-7 (issue #13): main batches `log:line` payloads (a send may carry one
+  // `LogLine` or a `LogLine[]` of accumulated lines) — the renderer-facing
+  // contract is still ONE call per line, so a batch expands here (FR-63:
+  // payload coalesced in main, listener semantics unchanged).
+  onLogLine: (listener) =>
+    subscribe<LogLine | LogLine[]>('log:line', (payload) => {
+      if (Array.isArray(payload)) {
+        for (const line of payload) {
+          listener(line);
+        }
+        return;
+      }
+      listener(payload);
+    }),
   versions: {
     electron: process.versions.electron ?? 'unknown',
     chrome: process.versions.chrome ?? 'unknown',

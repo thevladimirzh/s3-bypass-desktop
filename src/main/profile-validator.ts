@@ -314,33 +314,41 @@ export function validateClientConfig(raw: string): ValidationResult {
     );
   }
 
-  // BR-V-09 (shape) — declared inbounds must carry a socks listener object.
+  // BR-V-09 — EVERY declared inbound entry must be a socks listener bound to
+  // loopback: the import validator is the only enforcement point (S5-1), so a
+  // conforming first entry must never mask an extra entry binding 0.0.0.0.
   const inbounds = parsed['inbounds'];
   if (inbounds !== undefined) {
-    let socks: Record<string, unknown> | null = null;
     if (!Array.isArray(inbounds)) {
       return reject('E-VAL-014', 'The inbounds entry must be a socks listener object.');
     }
+    let socks: Record<string, unknown> | null = null;
     for (const entry of inbounds) {
-      if (isRecord(entry) && entry['protocol'] === 'socks') {
+      // BR-V-09 (shape half) — a non-record or non-socks entry is not a
+      // supported listener at all (errors.md §1, E-VAL-014).
+      if (!isRecord(entry) || entry['protocol'] !== 'socks') {
+        return reject('E-VAL-014', 'The inbounds entry must be a socks listener object.');
+      }
+      // BR-V-09 (address half) — loopback only, otherwise the proxy would be
+      // exposed (errors.md §1, E-VAL-010; the found address is interpolated).
+      const listen = entry['listen'];
+      if (!LOOPBACK_ADDRESSES.includes(String(listen))) {
+        return reject(
+          'E-VAL-010',
+          `The proxy inbound listens on ${displayValue(listen)}; it must listen on loopback only (127.0.0.1).`,
+        );
+      }
+      if (socks === null) {
         socks = entry;
-        break;
       }
     }
     if (socks === null) {
       return reject('E-VAL-014', 'The inbounds entry must be a socks listener object.');
     }
 
-    // BR-V-09 (address) — loopback only, otherwise the proxy would be exposed.
-    const listen = socks['listen'];
-    if (!LOOPBACK_ADDRESSES.includes(String(listen))) {
-      return reject(
-        'E-VAL-010',
-        `The proxy inbound listens on ${displayValue(listen)}; it must listen on loopback only (127.0.0.1).`,
-      );
-    }
-
-    // BR-V-10 (range half) — E-VAL-009 (≠ 10808) stays blocked on Q-AN-05 (DV-15).
+    // BR-V-10 (range half) — checked on the first socks entry once every
+    // entry passed the loopback scan; E-VAL-009 (≠ 10808) stays blocked on
+    // Q-AN-05 (DV-15).
     const port = socks['port'];
     if (typeof port !== 'number' || !Number.isInteger(port) || port < 1 || port > 65_535) {
       return reject(

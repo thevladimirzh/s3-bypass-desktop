@@ -21,7 +21,14 @@
  *      (FR-18). It runs BEFORE the port probe: while the core runs, its own
  *      inbound holds 10808, so a port-first order would misreport a double
  *      Start as E-IO-003 instead of the reducer's E-VAL-015 (TC-02-07).
- *   3. port 10808 free → else E-IO-003 (FR-15); still no transition.
+ *   2b. S5-1 (issue #7): re-validate the stored profile with the import
+ *      validator → else its documented E-VAL-* triple — the start-time
+ *      refusal arm for a profile that slipped past the import gate (still
+ *      no probe, no materialization, no emission; TC-02-19).
+ *   3. port 10808 free → else E-IO-003 (FR-15); still no transition. A
+ *      transient holder gets a bounded release grace (FR-15 TOCTOU), and a
+ *      child that loses the bind race AFTER the probe re-spawns the same T
+ *      (≤ 2 retries, no emission) instead of crashing — see `start()`.
  *   4. materialize T (FR-22/FR-23): merge the app-owned loopback inbound,
  *      resolve profile paths from T's directory, write mode 0600. This runs
  *      BEFORE the `starting` emission because the reducer has no
@@ -65,6 +72,8 @@ import {
   type StatusSnapshot,
   transition,
 } from '../shared/status-machine';
+import { redactLine } from './log-collector';
+import { validateClientConfig } from './profile-validator';
 
 /** One raw child-output line, delivered line-based (data-flows (b) step 6). */
 export interface CoreLogLine {
@@ -90,6 +99,8 @@ export interface CoreSupervisor {
   start(): Promise<OperationResult>;
   /** Settles at `stopped` — child exited, T deleted (FR-16/FR-23). */
   stop(): Promise<OperationResult>;
+  /** S5-3 (issue #9): kills a live child from ANY state (SIGTERM → 2 s → SIGKILL), reaps it, deletes T; `{ok:true}` no-op without a child. */
+  forceStop(): Promise<OperationResult>;
   /** True while the child process is alive. */
   isRunning(): boolean;
 }
@@ -108,6 +119,25 @@ const PROBE_TIMEOUT_MS = 500;
 
 /** FR-16: SIGTERM gets a 2 s budget before SIGKILL. */
 const TERM_BUDGET_MS = 2_000;
+
+/**
+ * FR-15 TOCTOU grace: `start()` polls this long for a transient holder (a
+ * dying previous core, a racing producer) to clear 10808 before it settles
+ * the documented E-IO-003 — the port check's result, just not its timing.
+ */
+const PORT_RELEASE_GRACE_MS = 3_000;
+
+/** Port-release poll cadence — bounded by the grace budget above. */
+const PORT_RELEASE_POLL_MS = 25;
+
+/**
+ * FR-15 TOCTOU: re-spawn budget when another process wins the bind AFTER our
+ * own probe passed (the child then dies with EADDRINUSE before readiness).
+ * Three attempts keep the worst-case wait (~3 × release grace) inside the
+ * 15 s budget of every spawn-path test while roughly halving the chance of
+ * losing three consecutive bind races to the parallel suite.
+ */
+const BIND_RETRY_BUDGET = 3;
 
 /** FR-23: the materialized config file must be owner-read/write only. */
 const CONFIG_FILE_MODE = 0o600;
@@ -142,19 +172,26 @@ function configWriteError(): AppError {
   };
 }
 
-/** errors.md §3 E-CORE-001 (FR-17): unexpected exit — exit code + last child line. */
+/**
+ * errors.md §3 E-CORE-001 (FR-17): unexpected exit — exit code + last child
+ * line. S5-2 (issue #8): the last line runs through the single redaction
+ * entry point BEFORE it is embedded, so `lastError` carries the "last
+ * REDACTED core line" (errors.md §3) and never a raw secret or T's path
+ * (NFR-2, FR-23) — the raw line still reaches `logSink` unchanged.
+ */
 function unexpectedExitError(
   code: number | null,
   signal: string | null,
   lastLine: string | null,
 ): AppError {
+  const safeLine = lastLine === null ? null : redactLine(lastLine);
   let cause: string;
   if (code !== null) {
     cause =
-      lastLine === null
+      safeLine === null
         ? `The tunnel engine exited with code ${code}.`
-        : `The tunnel engine exited with code ${code}: ${lastLine}.`;
-  } else if (lastLine === null) {
+        : `The tunnel engine exited with code ${code}: ${safeLine}.`;
+  } else if (safeLine === null) {
     cause =
       signal === null
         ? 'The tunnel engine exited unexpectedly.'
@@ -162,8 +199,8 @@ function unexpectedExitError(
   } else {
     cause =
       signal === null
-        ? `The tunnel engine exited unexpectedly: ${lastLine}.`
-        : `The tunnel engine exited unexpectedly (signal ${signal}): ${lastLine}.`;
+        ? `The tunnel engine exited unexpectedly: ${safeLine}.`
+        : `The tunnel engine exited unexpectedly (signal ${signal}): ${safeLine}.`;
   }
   return {
     code: 'E-CORE-001',
@@ -216,20 +253,28 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Merges the app-owned inbound (data-flows (b) step 3): the SOCKS listener is
  * the app's (127.0.0.1:10808, BR-V-09/BR-V-11) — an existing socks inbound is
  * pinned back onto the loopback values, a profile without one gains a new entry.
+ *
+ * S5-1 defense-in-depth (issue #7): EVERY record inbound entry is pinned onto
+ * loopback, not just the first socks one, and entries that are not listener
+ * objects are stripped — the third layer behind the import validator and the
+ * start-time refusal (step 2b), so T may never carry a non-loopback bind
+ * (TC-02-19's loopback arm).
  */
 function mergeLoopbackInbound(doc: Record<string, unknown>): void {
   const inbounds = doc['inbounds'];
   const entries: unknown[] = Array.isArray(inbounds) ? inbounds : [];
-  const existing = entries.find(
-    (entry): entry is Record<string, unknown> => isRecord(entry) && entry['protocol'] === 'socks',
-  );
+  const listeners = entries.filter(isRecord);
+  for (const listener of listeners) {
+    listener['listen'] = LOOPBACK_HOST;
+  }
+  const existing = listeners.find((entry) => entry['protocol'] === 'socks');
   if (existing !== undefined) {
-    existing['listen'] = LOOPBACK_HOST;
     existing['port'] = DEFAULT_SOCKS_PORT;
+    doc['inbounds'] = listeners;
     return;
   }
   doc['inbounds'] = [
-    ...entries,
+    ...listeners,
     {
       tag: 'socks-in',
       listen: LOOPBACK_HOST,
@@ -335,6 +380,12 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
   let readinessTimedOut = false;
   let crashError: AppError | null = null;
   let lastCoreLine: string | null = null;
+  /** FR-15 TOCTOU: the current attempt's child printed an EADDRINUSE refusal. */
+  let sawAddressInUse = false;
+  /** FR-15 TOCTOU: the exit path marked this attempt as re-spawnable. */
+  let bindRetryPending = false;
+  /** FR-15 TOCTOU: re-spawns left for the current `start()` call. */
+  let bindRetriesLeft = 0;
   let exited: Promise<void> = Promise.resolve();
   let resolveExit: (() => void) | null = null;
 
@@ -352,6 +403,11 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
   /** Line-based delivery to the injected sink (step 6) — raw, unredacted. */
   function emitLine(stream: CoreLogLine['stream'], text: string): void {
     lastCoreLine = text;
+    if (text.includes('EADDRINUSE')) {
+      // FR-15 TOCTOU evidence: the child lost the bind race it was spawned
+      // into — `handleChildExit` turns this into a bounded re-spawn.
+      sawAddressInUse = true;
+    }
     try {
       options.logSink({ stream, text });
     } catch {
@@ -408,7 +464,8 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
    * The single exit path (data-flows (b) step 8): runs on `close` (stdio
    * drained, child reaped) or on a spawn `error`, exactly once. Drives
    * `stopping → stopped` for a requested stop (A-13: exit code ignored) and
-   * `starting|running → crashed` otherwise; every branch deletes T (errors.md §6).
+   * `starting|running → crashed` otherwise; every branch deletes T (errors.md
+   * §6) — the FR-15 TOCTOU re-spawn above is the single exception.
    */
   function handleChildExit(
     code: number | null,
@@ -425,14 +482,26 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
       cleanupMaterialized();
       applyEvent('stopped');
     } else if (state === 'starting' || state === 'running') {
-      const error = readinessTimedOut
-        ? readinessTimeoutError()
-        : launchFailure !== null
-          ? launchFailedError(launchFailure)
-          : unexpectedExitError(code, signal, lastCoreLine);
-      crashError = error;
-      cleanupMaterialized();
-      applyEvent('crash', error);
+      // FR-15 TOCTOU: a bind refusal observed while still `starting` means
+      // another process won the port AFTER our probe passed — keep T, keep
+      // the `starting` state and skip the crash emission; `start()` re-spawns
+      // once the port clears (bounded by BIND_RETRY_BUDGET, exhausted → the
+      // documented E-CORE-001 below).
+      const bindRetryable =
+        state === 'starting' && !readinessTimedOut && sawAddressInUse && bindRetriesLeft > 0;
+      if (bindRetryable) {
+        bindRetryPending = true;
+        bindRetriesLeft -= 1;
+      } else {
+        const error = readinessTimedOut
+          ? readinessTimeoutError()
+          : launchFailure !== null
+            ? launchFailedError(launchFailure)
+            : unexpectedExitError(code, signal, lastCoreLine);
+        crashError = error;
+        cleanupMaterialized();
+        applyEvent('crash', error);
+      }
     }
     // Any other state was already settled by a terminal path — nothing to emit.
     resolveExit?.();
@@ -472,6 +541,25 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
     }
   }
 
+  /**
+   * FR-15 TOCTOU: polls until 10808 clears or the grace budget runs out. A
+   * TRANSIENT holder (a dying previous core, a racing producer) must not fail
+   * a Start that would succeed a moment later; a persistent holder still
+   * settles the documented E-IO-003 — the check's result, not its timing.
+   */
+  async function waitForPortRelease(): Promise<boolean> {
+    const deadline = Date.now() + PORT_RELEASE_GRACE_MS;
+    for (;;) {
+      if (!(await probeListening())) {
+        return true;
+      }
+      if (Date.now() >= deadline) {
+        return false;
+      }
+      await delay(PORT_RELEASE_POLL_MS);
+    }
+  }
+
   async function start(): Promise<OperationResult> {
     // data-flows (b) step 1a / FR-14 — BEFORE any transition (TC-02-04).
     if (!existsSync(options.binaryPath)) {
@@ -486,15 +574,29 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
       return { ok: false, error: gate.error };
     }
 
+    // S5-1 (issue #7 / DV-32 fix arm 1): the stored profile is RE-validated at
+    // Start — the import gate is the first barrier, this is the start-time
+    // refusal for a stored profile that slipped past it (TC-02-19's premise:
+    // "refuse to start", errors.md §1 E-VAL triple). The refusal runs BEFORE
+    // the port probe, so a crafted profile never probes, never materializes
+    // and never spawns: documented E-VAL-* code, no emission, state unchanged.
+    const validation = validateClientConfig(options.config);
+    if (!validation.ok) {
+      return { ok: false, error: validation.error };
+    }
+
     // Step 1b / FR-15: still no transition and no spawn while the port is held
-    // (TC-02-05). On loopback the probe answers immediately either way.
-    if (await probeListening()) {
+    // (TC-02-05). On loopback the probe answers immediately either way; only a
+    // TRANSIENT holder gets the bounded release grace — a persistent one
+    // settles E-IO-003 as documented (never a silent other port).
+    if ((await probeListening()) && !(await waitForPortRelease())) {
       return { ok: false, error: portBusyError() };
     }
 
-    // Re-evaluate against the current snapshot: the probe above was the only
-    // await, so a Start that raced this one now loses here — with no emission
-    // and no materialized file (single-child guard, AC-02.7).
+    // Re-evaluate against the current snapshot: the port probe (plus its
+    // bounded grace) was the only await, so a Start that raced this one now
+    // loses here — with no emission and no materialized file (single-child
+    // guard, AC-02.7).
     const finalGate = transition(snapshot, 'start');
     if (!finalGate.ok) {
       return { ok: false, error: finalGate.error };
@@ -515,61 +617,81 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
     // Step 5: state → starting (the first emission of the sequence).
     snapshot = finalGate.snapshot;
     options.onStateChange(snapshot);
-
-    // Step 6: spawn with the EXACT documented argv — an args array, no shell
-    // (PR-08); no `env` option means the child inherits `process.env`.
-    let spawned: ChildProcess | null = null;
-    try {
-      spawned = spawn(options.binaryPath, ['run', '-c', materialized.path], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-    } catch (failure) {
-      cleanupMaterialized();
-      const error = launchFailedError(failure instanceof Error ? failure : null);
-      applyEvent('crash', error);
-      return { ok: false, error };
-    }
-
-    child = spawned;
-    exitHandled = false;
-    readinessTimedOut = false;
-    crashError = null;
-    lastCoreLine = null;
-    exited = new Promise<void>((resolvePromise) => {
-      resolveExit = resolvePromise;
-    });
-
-    if (spawned.stdout !== null) attachLineReader(spawned.stdout, 'stdout');
-    if (spawned.stderr !== null) attachLineReader(spawned.stderr, 'stderr');
-    spawned.once('close', (code, signal) => {
-      handleChildExit(code, signal, null);
-    });
-    spawned.once('error', (failure) => {
-      handleChildExit(null, null, failure);
-    });
+    bindRetriesLeft = BIND_RETRY_BUDGET;
 
     // Steps 6/7: readiness races the exit watcher — whichever settles first
-    // decides how `start()` resolves (FR-13 / FR-17 / FR-20).
-    const outcome = await Promise.race([waitUntilReady(), exited.then(() => 'exited' as const)]);
-
-    if (outcome === 'ready') {
-      if (applyEvent('ready')) {
-        return { ok: true };
+    // decides how the attempt resolves (FR-13 / FR-17 / FR-20). FR-15 TOCTOU:
+    // an attempt that lost the bind race (child died with EADDRINUSE) waits
+    // for the port to clear and re-spawns with the SAME T — no emission, no
+    // re-materialization — bounded by BIND_RETRY_BUDGET.
+    for (;;) {
+      // Step 6: spawn with the EXACT documented argv — an args array, no shell
+      // (PR-08); no `env` option means the child inherits `process.env`.
+      let spawned: ChildProcess | null = null;
+      try {
+        spawned = spawn(options.binaryPath, ['run', '-c', materialized.path], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } catch (failure) {
+        cleanupMaterialized();
+        const error = launchFailedError(failure instanceof Error ? failure : null);
+        applyEvent('crash', error);
+        return { ok: false, error };
       }
-      // The exit watcher settled first after all — fall through to its error.
-      return { ok: false, error: crashError ?? unexpectedExitError(null, null, lastCoreLine) };
-    }
 
-    if (outcome === 'exited') {
-      return { ok: false, error: crashError ?? unexpectedExitError(null, null, lastCoreLine) };
-    }
+      child = spawned;
+      exitHandled = false;
+      readinessTimedOut = false;
+      crashError = null;
+      lastCoreLine = null;
+      sawAddressInUse = false;
+      bindRetryPending = false;
+      exited = new Promise<void>((resolvePromise) => {
+        resolveExit = resolvePromise;
+      });
 
-    // FR-20: the 10 s budget elapsed with no listener — kill, reap, then the
-    // exit path above emits `crashed` with E-CORE-002 and deletes T.
-    readinessTimedOut = true;
-    await terminateChild();
-    await exited;
-    return { ok: false, error: crashError ?? readinessTimeoutError() };
+      if (spawned.stdout !== null) attachLineReader(spawned.stdout, 'stdout');
+      if (spawned.stderr !== null) attachLineReader(spawned.stderr, 'stderr');
+      spawned.once('close', (code, signal) => {
+        handleChildExit(code, signal, null);
+      });
+      spawned.once('error', (failure) => {
+        handleChildExit(null, null, failure);
+      });
+
+      const outcome = await Promise.race([waitUntilReady(), exited.then(() => 'exited' as const)]);
+
+      if (outcome === 'ready') {
+        // Only OUR live listener counts as ready — a readiness probe can hit
+        // the racing process's socket while our child is already dead.
+        if (child !== null && !exitHandled && applyEvent('ready')) {
+          return { ok: true };
+        }
+        if (bindRetryPending) {
+          await waitForPortRelease();
+          continue;
+        }
+        // The exit watcher settled first after all — surface its error.
+        return { ok: false, error: crashError ?? unexpectedExitError(null, null, lastCoreLine) };
+      }
+
+      if (outcome === 'exited') {
+        if (bindRetryPending) {
+          // FR-15 TOCTOU: the winner released the port (or its grace ran
+          // out — the re-spawn then fails into the documented E-CORE-001).
+          await waitForPortRelease();
+          continue;
+        }
+        return { ok: false, error: crashError ?? unexpectedExitError(null, null, lastCoreLine) };
+      }
+
+      // FR-20: the 10 s budget elapsed with no listener — kill, reap, then the
+      // exit path above emits `crashed` with E-CORE-002 and deletes T.
+      readinessTimedOut = true;
+      await terminateChild();
+      await exited;
+      return { ok: false, error: crashError ?? readinessTimeoutError() };
+    }
   }
 
   async function stop(): Promise<OperationResult> {
@@ -588,9 +710,31 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
     return { ok: true };
   }
 
+  /**
+   * S5-3 (issue #9): the kill-from-any-state route of the quit teardown
+   * (data-flows §2.1 step 9 — no orphan, no leftover). Unlike `stop()`, the
+   * graceful route is state-machine gated (it accepts only `running`), so a
+   * core that is `starting` or already `stopping` would never be reaped:
+   * `forceStop()` merely ATTEMPTS the `stop` emission for observability but
+   * SIGTERM → 2 s → SIGKILL (FR-16/A-13) regardless, awaits the child's exit
+   * (the exit path deletes T, errors.md §6) and settles `{ok:true}`. With no
+   * live child it is the idempotent no-op — nothing spawned, nothing killed.
+   */
+  async function forceStop(): Promise<OperationResult> {
+    if (child === null || exitHandled) {
+      return { ok: true };
+    }
+    applyEvent('stop'); // observability only — a refused edge never blocks the kill
+    await terminateChild();
+    await exited; // the exit path already reaped the child and deleted T
+    cleanupMaterialized(); // idempotent belt-and-braces (FR-23)
+    return { ok: true };
+  }
+
   return {
     start,
     stop,
+    forceStop,
     isRunning(): boolean {
       return child !== null;
     },

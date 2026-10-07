@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { LogLine } from '../../../shared/ipc';
 
+/** FR-46 cap mirrored into the renderer (S5-7: main's 2000-line bound, end-to-end). */
+const MAX_RENDERED_LINES = 2000;
+
 /**
  * The logs section (FR-45/FR-49, US-06): fills from `logs:get` on mount and
  * stays current through the `log:line` push (AC-06.1 — oldest-first, one row
  * per line). The renderer never redacts: it only displays what main's single
- * entry point already redacted (FR-47).
+ * entry point already redacted (FR-47). The mirror is capped at
+ * `MAX_RENDERED_LINES` with drop-oldest on append (S5-7, FR-46: memory must
+ * not grow unbounded under a log flood — the bound holds end-to-end).
  *
  * "Copy logs" (AC-06.5/FR-49) writes exactly the visible rows' text — one
  * `navigator.clipboard.writeText` call, nothing more; Clear (AC-06.6 UI
@@ -21,10 +26,11 @@ export default function LogsView() {
     let cancelled = false;
     // Subscribe BEFORE the snapshot (data-flows §4.2): main stores a line
     // before it notifies, so a push racing the `logs:get` round-trip is
-    // either already in the snapshot or appended right after it.
+    // either already in the snapshot or appended right after it. The cap
+    // applies on append: keep the newest `MAX_RENDERED_LINES`, oldest out.
     const unsubscribe = window.s3Bypass?.onLogLine?.((line) => {
       if (!cancelled) {
-        setLines((previous) => [...previous, line]);
+        setLines((previous) => [...previous, line].slice(-MAX_RENDERED_LINES));
       }
     });
     window.s3Bypass

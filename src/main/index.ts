@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -19,6 +19,7 @@ import {
 import { APP_NAME, DEFAULT_SOCKS_PORT, IPC_PING } from '../shared/constants';
 import type {
   IpcPushChannel,
+  LogLine,
   LogsView,
   OperationResult,
   PingResult,
@@ -86,18 +87,51 @@ function broadcastStatus(snapshot: StatusSnapshot): void {
 const logCollector = createLogCollector();
 
 /**
- * FR-63 (data-flows (d) H4): each stored (post-redaction) line is pushed to
- * every window as it arrives — the renderer never polls the buffer. Mirrors
- * `broadcastStatus`; the send is best-effort so a window closing mid-push
- * cannot break the collector's notification path.
+ * S5-7 (issue #13): the `log:line` coalescing window — lines accumulate and
+ * are flushed as ONE batched send at most this often (FR-46/FR-52: a 10k
+ * core-log burst must not become 10k IPC round-trips + 10k renders; the
+ * report's fix allows up to 250 ms per batch).
  */
-logCollector.subscribe((line) => {
+const LOG_FLUSH_MS = 100;
+
+/** Lines accumulated since the last flush — already redacted by the collector. */
+const pendingLogLines: LogLine[] = [];
+
+/** The scheduled flush, if any — one timer at a time, never one per line. */
+let logFlushTimer: NodeJS.Timeout | null = null;
+
+/** Sends the accumulated batch as ONE `log:line` payload (FR-63 per batch). */
+function flushLogLines(): void {
+  if (logFlushTimer !== null) {
+    clearTimeout(logFlushTimer);
+    logFlushTimer = null;
+  }
+  if (pendingLogLines.length === 0) {
+    return;
+  }
+  const batch = pendingLogLines.splice(0, pendingLogLines.length);
   for (const win of BrowserWindow.getAllWindows()) {
     try {
-      win.webContents.send(LOG_LINE, line);
+      win.webContents.send(LOG_LINE, batch);
     } catch {
-      // The window is gone — the line stays in the buffer for the next one.
+      // The window is gone — the lines stay in the buffer for the next one.
     }
+  }
+}
+
+/**
+ * FR-63 (data-flows (d) H4): stored (post-redaction) lines are pushed to
+ * every window — COALESCED: the subscriber only accumulates and (re)arms the
+ * flush timer above, so a synchronous flood collapses into a handful of sends
+ * with every line delivered (FR-47 "replaced, never dropped", FR-63 payload
+ * unchanged — the preload expands a batch into per-line listener calls).
+ * Mirrors `broadcastStatus`; each send is best-effort so a window closing
+ * mid-push cannot break the collector's notification path.
+ */
+logCollector.subscribe((line) => {
+  pendingLogLines.push(line);
+  if (logFlushTimer === null) {
+    logFlushTimer = setTimeout(flushLogLines, LOG_FLUSH_MS);
   }
 });
 
@@ -228,12 +262,14 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' };
   });
 
-  // Navigation guard (M0-19 / S3-1): the window may only stay on the local
-  // renderer — the dev server URL in dev or a local file when packaged.
-  // Remote navigation would keep the preload attached, so it is denied.
+  // Navigation guard (M0-19 / S3-1 / S5-4): the window may only stay on the
+  // local renderer — a local file when packaged, the dev server URL in a
+  // NON-packaged run only (an inherited env var may never widen a packaged
+  // window's allowlist, issue #10). Remote navigation would keep the preload
+  // attached, so it is denied.
   const devUrl = process.env.ELECTRON_RENDERER_URL;
   const isAllowedNavigation = (url: string): boolean =>
-    url.startsWith('file://') || (devUrl !== undefined && url === devUrl);
+    url.startsWith('file://') || (!app.isPackaged && devUrl !== undefined && url === devUrl);
   win.webContents.on('will-navigate', (event, url) => {
     if (!isAllowedNavigation(url)) event.preventDefault();
   });
@@ -289,6 +325,25 @@ const FILE_READ_FAILED: AppError = {
     'The file could not be read — it may have been moved, deleted, or its permissions changed.',
   nextStep: 'Check the file still exists, then import again.',
 };
+
+/** BR-V-02 ceiling in bytes (same value the validator's in-memory gate uses, DV-09). */
+const MAX_PROFILE_BYTES = 1_048_576;
+
+/**
+ * `errors.md` §1 E-VAL-002 (S5-5, issue #11): the documented size refusal,
+ * answered from `statSync` METADATA before any read — the in-memory gate of
+ * `validateClientConfig` stays as defense in depth, never as the first gate
+ * (FR-02 / data-flows (a) step 1: a huge file must be rejected, not read).
+ */
+function profileTooLargeError(size: number): AppError {
+  const mib = (size / MAX_PROFILE_BYTES).toFixed(2);
+  return {
+    code: 'E-VAL-002',
+    title: 'Profile file too large',
+    cause: `The selected file is ${mib} MiB; profiles must be under 1 MiB.`,
+    nextStep: 'Pick the actual profile JSON — this file is probably something else.',
+  };
+}
 
 /** `errors.md` §2 defensive entry: the native picker itself failed (FR-01). */
 const DIALOG_FAILED: AppError = {
@@ -541,8 +596,9 @@ let teardownSettled = false;
 
 /**
  * The M1-23 lifecycle policy over its Electron/host collaborators (plan
- * M1-23a deps contract, FR-19/FR-35): `stopCore` takes the very path
- * `core:stop` delegates to (single stop route), `restoreProxy` delegates to
+ * M1-23a deps contract, FR-19/FR-35): `stopCore` takes the S5-3 force route
+ * (`handleStopForce` — kill from any state, issue #9) while the tray Stop
+ * action keeps the graceful `handleStop()`; `restoreProxy` delegates to
  * the system-proxy restore hook UNCONDITIONALLY (no caller-side guard — the
  * module owns the `snapshot === null` no-op), and `requestQuit` opens the
  * before-quit gate before asking the host to exit.
@@ -550,9 +606,12 @@ let teardownSettled = false;
 const windowLifecycle = createWindowLifecycle({
   isQuitting: () => quitting,
   stopCore: async (): Promise<void> => {
-    // FR-19: the very path `core:stop` delegates to — one stop route, and
-    // the `{ok:true}` payload of a no-op stop is irrelevant to teardown.
-    await coreWiring.handleStop();
+    // FR-19 / S5-3 (issue #9): the quit teardown takes the FORCE route —
+    // it awaits any in-flight graceful stop, then kills from any state
+    // (`starting`/`stopping` would orphan the child otherwise), so no
+    // leftover child and no leftover T (data-flows §2.1 step 9). The tray
+    // Stop action below keeps the graceful `handleStop()`.
+    await coreWiring.handleStopForce();
   },
   restoreProxy: async (): Promise<void> => {
     // FR-35 / AC-04.7: UNCONDITIONAL delegation — the module itself owns the
@@ -643,6 +702,22 @@ ipcMain.handle(
     const path = picked.filePaths[0];
     if (picked.canceled || path === undefined) {
       return { ok: false, reason: 'cancelled' };
+    }
+
+    // S5-5 (issue #11) / FR-02 / BR-V-02 / data-flows (a) step 1: size from
+    // METADATA first — a file over 1 MiB is refused WITHOUT ever being read
+    // (a stat failure keeps FR-06's documented read refusal). The read below
+    // therefore only ever runs for a plausibly small file; the validator's
+    // in-memory gate stays as defense in depth.
+    let size: number;
+    try {
+      size = statSync(path).size;
+    } catch {
+      // FR-06 / US-01 edge: vanished or unstat-able between picker and stat.
+      return { ok: false, error: FILE_READ_FAILED };
+    }
+    if (size > MAX_PROFILE_BYTES) {
+      return { ok: false, error: profileTooLargeError(size) };
     }
 
     let raw: string;

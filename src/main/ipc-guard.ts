@@ -12,7 +12,7 @@
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import type { IpcMainInvokeEvent } from 'electron';
+import { app, type IpcMainInvokeEvent } from 'electron';
 
 /**
  * The packaged document `createWindow` loads (`loadFile` in
@@ -26,14 +26,28 @@ const PACKAGED_DOCUMENT_URL = pathToFileURL(join(__dirname, '../renderer/index.h
 /**
  * The dev server document `createWindow` loads (`loadURL`), read once at
  * module load — the tests pin `ELECTRON_RENDERER_URL` before importing main.
- * When it is unset (packaged run), the packaged document alone forms the set.
+ * S5-4 (issue #10): it only ever joins the allowed set in a NON-packaged run,
+ * same condition as the `loadURL`/`loadFile` gate in `src/main/index.ts`.
  */
 const DEV_URL = process.env.ELECTRON_RENDERER_URL;
 
-/** Allowed sender URLs: dev document ∪ packaged document — computed once. */
-const ALLOWED_SENDER_URLS: ReadonlySet<string> = new Set(
+/** Allowed sender URLs while packaged — the packaged document ALONE (S5-4). */
+const PACKAGED_ONLY_URLS: ReadonlySet<string> = new Set([PACKAGED_DOCUMENT_URL]);
+
+/** Allowed sender URLs in a dev run — dev document ∪ packaged document (issue #1). */
+const DEV_RUN_URLS: ReadonlySet<string> = new Set(
   DEV_URL === undefined ? [PACKAGED_DOCUMENT_URL] : [DEV_URL, PACKAGED_DOCUMENT_URL],
 );
+
+/**
+ * S5-4: `app.isPackaged` is consulted at CALL time — the poisoned-packaged-run
+ * scenario of the regression test flips the switch per invocation, and the
+ * read degrades to "packaged" (the narrow set) if the shape is ever missing.
+ */
+function allowedSenderUrls(): ReadonlySet<string> {
+  const runtimeApp = app as unknown as { readonly isPackaged?: boolean } | undefined;
+  return runtimeApp?.isPackaged === true ? PACKAGED_ONLY_URLS : DEV_RUN_URLS;
+}
 
 /** Runtime shape of `event.senderFrame` the guard consults — `url` only. */
 interface SenderFrameLike {
@@ -59,7 +73,7 @@ export function assertTrustedSender(event: IpcMainInvokeEvent): void {
   const senderFrame = (event as { readonly senderFrame?: SenderFrameLike | null } | null)
     ?.senderFrame;
   const url = senderFrame?.url;
-  if (typeof url === 'string' && ALLOWED_SENDER_URLS.has(url)) {
+  if (typeof url === 'string' && allowedSenderUrls().has(url)) {
     return;
   }
   const error = new Error(

@@ -88,6 +88,12 @@ export interface CoreWiring {
   handleStart(): Promise<OperationResult>;
   /** Body of the `core:stop` handler: `supervisor.stop()` (idempotent no-op without one). */
   handleStop(): Promise<OperationResult>;
+  /**
+   * S5-3 (issue #9): the quit-teardown route — awaits any in-flight
+   * `handleStop()` first, then `supervisor.forceStop()` verbatim (the §4.2
+   * idempotent `{ok:true}` no-op without a constructed supervisor).
+   */
+  handleStopForce(): Promise<OperationResult>;
   /** Answer of `status:get` — the latest snapshot, `{state, lastError, socksPort}`. */
   getStatus(): StatusSnapshot;
 }
@@ -123,12 +129,16 @@ function noProfileError(): AppError {
 export function createCoreWiring(deps: CoreWiringDeps): CoreWiring {
   // The latest supervisor (null until the first profile-backed start) …
   let supervisor: CoreSupervisor | null = null;
-  // … and the latest exposed snapshot (FR-25: status:get answers CURRENT).
+  // … the latest exposed snapshot (FR-25: status:get answers CURRENT) …
   let current: StatusSnapshot = {
     state: 'stopped',
     lastError: null,
     socksPort: DEFAULT_SOCKS_PORT,
   };
+  // … and the graceful stop currently in flight, if any — S5-3 (issue #9):
+  // the quit teardown awaits it before taking the force route ("make teardown
+  // await any in-flight stop"), never re-issuing a second graceful `stop()`.
+  let inFlightStop: Promise<OperationResult> | null = null;
 
   /**
    * The push source registered as the supervisor's `onStateChange`
@@ -178,12 +188,37 @@ export function createCoreWiring(deps: CoreWiringDeps): CoreWiring {
     if (supervisor === null) {
       return { ok: true };
     }
-    return supervisor.stop();
+    const run = supervisor.stop();
+    inFlightStop = run;
+    try {
+      return await run;
+    } finally {
+      if (inFlightStop === run) {
+        inFlightStop = null;
+      }
+    }
+  };
+
+  const handleStopForce = async (): Promise<OperationResult> => {
+    // S5-3: teardown settles any in-flight graceful stop FIRST (it may be
+    // halfway through SIGTERM + T cleanup), then takes the kill route once.
+    const inFlight = inFlightStop;
+    if (inFlight !== null) {
+      await inFlight;
+    }
+    // §4.2 idempotent no-op: no supervisor was ever constructed — nothing to
+    // kill, and the factory stays untouched (the no-child forceStop precedent).
+    if (supervisor === null) {
+      return { ok: true };
+    }
+    // The forceStop result crosses VERBATIM (identity, all wording is M1-15's).
+    return supervisor.forceStop();
   };
 
   return {
     handleStart,
     handleStop,
+    handleStopForce,
     getStatus: (): StatusSnapshot => current,
   };
 }

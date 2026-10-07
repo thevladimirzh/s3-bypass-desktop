@@ -67,11 +67,19 @@ const REDACTED = '[REDACTED]';
  * Redaction triggers (§8.4 classification, FR-47/FR-48) — any hit replaces
  * the WHOLE line with `[REDACTED]` (DV-25 whole-line reading):
  *
- *  1. SECRET field names (strategy §7.5 list), separator-tolerant, so both a
- *     quoted config key (`"accessKey"`) and a value shaped like its field
- *     name (the §9.3 canaries: `EXAMPLEACCESSKEYID01`,
- *     `example-bucket-password`, …) hit the same rule.
+ *  1. SECRET field names (strategy §7.5 list), separator-tolerant over the
+ *     `[-_\s.]*` class (S5-6 gap 3), so a quoted config key (`"accessKey"`),
+ *     a camelCase spelling (`clientSecret`, `privateKey`), a dotted or
+ *     space-separated variant (`access..key`, `ACCESS  KEY`) and a value
+ *     shaped like its field name (the §9.3 canaries: `EXAMPLEACCESSKEYID01`,
+ *     `example-bucket-password`, …) all hit the same rules.
+ *  1b. S5-6 gap 1: GENERIC credential key names the four-name denylist did
+ *     not cover — password/pass, cookie, authorization, signature/signing.
  *  2. SECRET — the full config JSON document marker (`"outbounds"`).
+ *  2b. S5-6 gap 2: nameless secret VALUE shapes [ASSUMPTION] — an AWS-style
+ *     `AKIA…` id, a JWT triple, and a long base64/hex run (≥ 40 chars of the
+ *     token alphabet containing a lowercase letter, so a pure-uppercase flood
+ *     line of US-06 stays a PUBLIC line — see `hasSecretShape`).
  *  3./4. errors.md §0 — no stack frames, no exception class messages.
  *  5..8. INTERNAL value shapes [ASSUMPTION, Q-AN-09]: path/URL values
  *     (`prefix`, `endpoint`), region codes, bucket names, session-directory
@@ -81,8 +89,19 @@ const REDACTED = '[REDACTED]';
  * match none of these and pass through byte-for-byte (§8.4, AC-06.1).
  */
 const REDACTION_RULES: readonly RegExp[] = [
-  /access[-_\s]?key|secret[-_\s]?key|session[-_\s]?token|bucket[-_\s]?password/i,
+  /access[-_\s.]*key/i,
+  /secret[-_\s.]*key/i,
+  /session[-_\s.]*token/i,
+  /bucket[-_\s.]*password/i,
+  /\bpass(?:word|wd)?\b/i,
+  /\bcookie\b/i,
+  /\bauthorization\b/i,
+  /\bsign(?:ature|ing)\b/i,
+  /\bclient[-_\s.]*secret\b/i,
+  /\bprivate[-_\s.]*key\b/i,
   /"outbounds"/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/,
   /(^|\n)\s+at\s.*\(/,
   /Error:/,
   /\//,
@@ -91,29 +110,41 @@ const REDACTION_RULES: readonly RegExp[] = [
   /\bsessions?\b/i,
 ];
 
+/** S5-6 gap 2: the base64/hex token alphabet — a secret run needs ≥ 40 chars. */
+const LONG_TOKEN_RUN = /[A-Za-z0-9+/=_-]{40,}/;
+
+/**
+ * S5-6 gap 2: a nameless secret is a LONG token run — but the US-06 oversize
+ * flood lines are pure uppercase runs (`A`×10000, `B`×4090 …) that must stay
+ * PUBLIC, so a run only counts when it carries at least one lowercase letter
+ * (real base64/hex secrets virtually always do).
+ */
+function hasLongSecretToken(text: string): boolean {
+  const run = LONG_TOKEN_RUN.exec(text);
+  return run !== null && /[a-z]/.test(run[0]);
+}
+
 /** Stream→level mapping is unspecified in the docs — only union membership is pinned (DV-25). */
 const STREAM_LEVELS: Readonly<Record<CoreLogLine['stream'], LogLine['level']>> = {
   stdout: 'info',
   stderr: 'error',
 };
 
-/** FR-47: redact first, so a secret can never survive even as a cut fragment. */
-function redact(text: string): string {
+/**
+ * FR-47: redact first, so a secret can never survive even as a cut fragment.
+ * Stateless on purpose — the same single entry point answers the supervisor's
+ * "last redacted core line" (S5-2, errors.md §3), which has no collector.
+ */
+export function redactLine(text: string): string {
   for (const rule of REDACTION_RULES) {
     if (rule.test(text)) {
       return REDACTED;
     }
   }
-  return text;
-}
-
-/** Redaction (FR-47) then the US-06 size cap — in exactly that order (TC-06-10). */
-function prepareText(text: string): string {
-  const redacted = redact(text);
-  if (redacted.length <= MAX_TEXT_CHARS) {
-    return redacted;
+  if (hasLongSecretToken(text)) {
+    return REDACTED;
   }
-  return redacted.slice(0, MAX_TEXT_CHARS) + TRUNCATION_MARKER;
+  return text;
 }
 
 /**
@@ -130,11 +161,41 @@ export function createLogCollector(options: LogCollectorOptions = {}): LogCollec
   // AC-06.1: timestamps are ISO-8601 and non-decreasing even if the system
   // clock steps backwards mid-session (oldest-first must stay observable).
   let lastTs = 0;
+  // S5-6 gap 4: document mode — a line whose TRIMMED text starts with `{`
+  // opens a config document; every subsequent line is replaced until the
+  // closing `}` (that closer included, then exit); an unclosed document
+  // redacts the rest of the stream (fail-safe). Per-instance state that
+  // `clear()` deliberately does NOT reset: the buffer and the redaction
+  // context are independent (FR-47 runs before the insert).
+  let inDocument = false;
 
   const timestamp = (): string => {
     const now = Date.now();
     lastTs = now > lastTs ? now : lastTs;
     return new Date(lastTs).toISOString();
+  };
+
+  /**
+   * Document-mode gate, then the rule-based redaction (FR-47), then the
+   * US-06 size cap — in exactly that order (TC-06-10: redaction before
+   * truncation).
+   */
+  const prepareText = (text: string): string => {
+    const trimmed = text.trim();
+    if (inDocument) {
+      if (trimmed.startsWith('}')) {
+        inDocument = false; // redact-then-exit: the closer leaves as [REDACTED]
+      }
+      return REDACTED;
+    }
+    if (trimmed.startsWith('{')) {
+      inDocument = true; // the opener's own text still goes through the rules
+    }
+    const redacted = redactLine(text);
+    if (redacted.length <= MAX_TEXT_CHARS) {
+      return redacted;
+    }
+    return redacted.slice(0, MAX_TEXT_CHARS) + TRUNCATION_MARKER;
   };
 
   /** The single observation point: cap first, then notify with the stored line. */
