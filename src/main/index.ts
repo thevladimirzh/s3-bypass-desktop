@@ -8,6 +8,7 @@ import {
   ipcMain,
   type IpcMainInvokeEvent,
   type OpenDialogReturnValue,
+  session,
   shell,
 } from 'electron';
 
@@ -26,6 +27,7 @@ import type {
   StatusSnapshot,
 } from '../shared/ipc';
 import type { AppError } from '../shared/status-machine';
+import { assertTrustedSender } from './ipc-guard';
 import { validateClientConfig } from './profile-validator';
 import {
   deleteStoredProfile,
@@ -263,11 +265,13 @@ function parseStoredProfile(raw: string): Record<string, unknown> | null {
 // the documented §4.2 payload shape — placeholder results where the feature
 // does not exist yet, otherwise an NFR-5 `AppError` triple taken verbatim
 // from docs/analysis/errors.md (no stacks, no secrets — FR-48/NFR-2).
-// Sender validation (`event.senderFrame`) is added with security review
-// M1-10; handlers keep their event parameter available for it.
+// Sender validation (issue #1 / M1-10 S3-1): every callback calls the shared
+// `assertTrustedSender(event)` FIRST — before any logic, dialog, or store
+// access (src/main/ipc-guard.ts).
 // ————————————————————————————————————————————————————————————————
 
-ipcMain.handle(IPC_PING, (): PingResult => {
+ipcMain.handle(IPC_PING, (event: IpcMainInvokeEvent): PingResult => {
+  assertTrustedSender(event);
   return { ok: true, app: APP_NAME, socksPort: DEFAULT_SOCKS_PORT };
 });
 
@@ -277,7 +281,8 @@ ipcMain.handle(IPC_PING, (): PingResult => {
 // double gate). Overwrite confirmation (FR-08, step 6) lands with M1-13.
 ipcMain.handle(
   'profile:import-dialog',
-  async (_event: IpcMainInvokeEvent): Promise<ProfileImportResult> => {
+  async (event: IpcMainInvokeEvent): Promise<ProfileImportResult> => {
+    assertTrustedSender(event);
     let picked: OpenDialogReturnValue;
     try {
       picked = await dialog.showOpenDialog({
@@ -328,7 +333,8 @@ ipcMain.handle(
 // M1-12: main decrypts (FR-55) and returns only the §8.3 summary — never the
 // config document. An unreadable store or a document that no longer parses
 // degrades to "no profile" instead of crashing (data-flows §5, FR-59).
-ipcMain.handle('profile:get', (_event: IpcMainInvokeEvent): ProfileView => {
+ipcMain.handle('profile:get', (event: IpcMainInvokeEvent): ProfileView => {
+  assertTrustedSender(event);
   let raw: string | null;
   try {
     raw = loadProfile();
@@ -349,7 +355,8 @@ ipcMain.handle('profile:get', (_event: IpcMainInvokeEvent): ProfileView => {
 
 // M1-12: removal deletes the stored blob itself, not a UI flag (FR-60,
 // AC-07.7); a store failure answers its documented triple, never a raw one.
-ipcMain.handle('profile:remove', (_event: IpcMainInvokeEvent): ProfileRemovalResult => {
+ipcMain.handle('profile:remove', (event: IpcMainInvokeEvent): ProfileRemovalResult => {
+  assertTrustedSender(event);
   try {
     deleteStoredProfile();
     return { ok: true };
@@ -362,7 +369,8 @@ ipcMain.handle('profile:remove', (_event: IpcMainInvokeEvent): ProfileRemovalRes
 // yet, so Start reports the documented "engine not found" triple (errors.md
 // §2; risk R-1 — the pinned binary arrives with M2). No status transition
 // happens here; M1-17 owns transitions and their `status:changed` pushes.
-ipcMain.handle('core:start', (): OperationResult => {
+ipcMain.handle('core:start', (event: IpcMainInvokeEvent): OperationResult => {
+  assertTrustedSender(event);
   return {
     ok: false,
     error: {
@@ -376,29 +384,34 @@ ipcMain.handle('core:start', (): OperationResult => {
 
 // Placeholder until M1-15: there is no supervisor, hence nothing running —
 // stopping is already satisfied (idempotent no-op success).
-ipcMain.handle('core:stop', (): OperationResult => {
+ipcMain.handle('core:stop', (event: IpcMainInvokeEvent): OperationResult => {
+  assertTrustedSender(event);
   return { ok: true };
 });
 
-ipcMain.handle('status:get', (): StatusSnapshot => {
+ipcMain.handle('status:get', (event: IpcMainInvokeEvent): StatusSnapshot => {
+  assertTrustedSender(event);
   return currentStatus;
 });
 
 // Placeholder until M1-19 (log collector): the buffer does not exist yet —
 // an empty, trivially redacted result beats a fabricated line (FR-45).
-ipcMain.handle('logs:get', (): LogsView => {
+ipcMain.handle('logs:get', (event: IpcMainInvokeEvent): LogsView => {
+  assertTrustedSender(event);
   return { lines: [] };
 });
 
 // Placeholder until M1-19: clearing an empty buffer succeeds (FR-46).
-ipcMain.handle('logs:clear', (): { ok: true } => {
+ipcMain.handle('logs:clear', (event: IpcMainInvokeEvent): { ok: true } => {
+  assertTrustedSender(event);
   return { ok: true };
 });
 
 // Placeholder until M1-21 (system-proxy module): no automatic control exists
 // yet, so report `supported: false` with the E-PLAT-001 manual-setup values
 // (127.0.0.1:10808 — errors.md §4, AC-04.5).
-ipcMain.handle('proxy:get', (): ProxyState => {
+ipcMain.handle('proxy:get', (event: IpcMainInvokeEvent): ProxyState => {
+  assertTrustedSender(event);
   return {
     supported: false,
     active: false,
@@ -411,7 +424,8 @@ ipcMain.handle('proxy:get', (): ProxyState => {
 // `{ enabled }` payload (§4.2) is honored by the real handler in M1-21.
 ipcMain.handle(
   'proxy:set',
-  (_event: IpcMainInvokeEvent, _request: ProxyToggleRequest): OperationResult => {
+  (event: IpcMainInvokeEvent, _request: ProxyToggleRequest): OperationResult => {
+    assertTrustedSender(event);
     return {
       ok: false,
       error: {
@@ -425,6 +439,15 @@ ipcMain.handle(
 );
 
 app.whenReady().then(() => {
+  // S3-2 (issue #1 second half): deny every renderer permission request by
+  // default — Electron is allow-by-default for several permissions, and no
+  // feature needs one yet. An allowlist arrives with the first feature that
+  // does. Registered inside the whenReady path: Electron exposes `session`
+  // only once the ready event has fired.
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
+    callback(false);
+  });
+
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
