@@ -128,18 +128,20 @@ core-crashed` transitions and the last error string.
       behavior, quit path stops supervisor and restores system proxy.
       _(Policy module `window-lifecycle.ts` + tray menu model done; native
       wiring → M1-23a/b.)_
-- [ ] **M1-23a** · qa · **S** · deps: M1-17, M1-23 · `todo`
+- [x] **M1-23a** · qa · **S** · deps: M1-17, M1-23 · `done`
       **RED:** `index.ts` native wiring pins — `app.on('close')` routes through
       `handleCloseRequest` (hide-to-tray), `before-quit` runs
       `handleBeforeQuit` teardown (stopCore → restoreProxy → requestQuit),
       `window-all-closed` keeps the process alive while the tray exists, and
       the system-proxy restore hook is wired (structural + mocked-electron
       tests; module-level ACs already covered by M1-22).
-- [ ] **M1-23b** · developer · **S** · deps: M1-23a · `todo`
+- [x] **M1-23b** · developer · **S** · deps: M1-23a · `done`
       **GREEN:** wire `createWindowLifecycle` + `restoreSystemProxy` +
       `stopCore→coreWiring.handleStop` into `index.ts` quit/close paths;
       `setSystemProxy` on Start (behind the existing AC/scope of US-04 as
       pinned by M1-23a).
+      _(`setSystemProxy`-on-Start NOT implemented — DV-30(4): auto vs manual
+      is a spec-owner decision (Q owner); `proxy:set` placeholder untouched.)_
 
 ## Phase I — Integration, security, acceptance
 
