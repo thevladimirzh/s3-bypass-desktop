@@ -1,0 +1,48 @@
+{
+  "log": {
+    "loglevel": "info"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "port": 10808,
+      "protocol": "socks",
+      "settings": {
+        "auth": "noauth",
+        "udp": true
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "fedarisha",
+      "settings": {
+        "storage": {
+          "type": "s3",
+          "bucket": "example-bucket",
+          "endpoint": "https://s3.example.com",
+          "region": "us-east-1",
+          "prefix": "profiles/vlt-alpha",
+          "sessionsDir": "sessions",
+          "accessKey": "EXAMPLEACCESSKEYID01",
+          "secretKey": "EXAMPLESECRETKEY0123456789",
+          "sessionToken": "EXAMPLESESSIONTOKEN0001",
+          "bucketPassword": "example-bucket-password"
+        },
+        "tuning": {
+          "idleTimeoutSec": 3,
+          "pollIntervalMs": 100,
+          "writeIntervalMs": 20,
+          "maxFileSizeBytes": 2097152
+        }
+      }
+    },
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}

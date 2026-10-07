@@ -1,0 +1,44 @@
+{
+  "log": {
+    "loglevel": "info"
+  },
+  "inbounds": [
+    {
+      "tag": "socks-in",
+      "listen": "127.0.0.1",
+      "port": 10808,
+      "protocol": "socks",
+      "settings": {
+        "auth": "noauth",
+        "udp": true
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "proxy",
+      "protocol": "fedarisha",
+      "settings": {
+        "storage": {
+          "type": "s3",
+          "region": "us-east-1",
+          "prefix": "",
+          "sessionsDir": "sessions",
+          "sessionToken": "EXAMPLESESSIONTOKEN0001",
+          "bucketPassword": "example-bucket-password"
+        },
+        "tuning": {
+          "idleTimeoutSec": 300,
+          "pollIntervalMs": 100,
+          "writeIntervalMs": 20,
+          "maxFileSizeBytes": 2097152
+        }
+      }
+    },
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {}
+    }
+  ]
+}
