@@ -161,7 +161,7 @@ core-crashed` transitions and the last error string.
       _(S5-1..S5-7 = issues #7–#13 fixed; RED `085b7dc` → GREEN `bee1e08`;
       209/0 after DV-33 cross-file port mutex `e5720e3`; D3 supervisor
       TOCTOU-grace/re-spawn addition flagged for security review in M1-26b.)_
-- [ ] **M1-26b** · developer · **S** · deps: M1-25 · `todo`
+- [x] **M1-26b** · developer · **S** · deps: M1-25, M1-26 · `done`
       Stale M1-10 follow-ups before the M1-28 gate: issues #3 (exact-path
       navigation), #4 (secret-store hardening — deadline M1-12 **missed**),
       #5 (broadcast targeting/payload validation/throttling — features now
@@ -169,6 +169,14 @@ core-crashed` transitions and the last error string.
       close with evidence where already covered. **+ security review of dev
       deviation D3** (supervisor TOCTOU port grace ≤3 s + bounded EADDRINUSE
       re-spawn, M1-26 GREEN) — sign off or file a follow-up.
+      _(Verification report `docs/qa/security-m1-26b.md`: #3 OPEN, #4 OPEN
+      (deadline miss recorded), #5 PARTIAL (S4-3 covered → evidence on the
+      issue; S4-4 blocked on owner DV-30(4); S4-6 open), **D3 signed off
+      as-is** with two advisories folded into S5-16. RED `a1e5523` → GREEN
+      `a4a0b69`: TC-IPC-14 + TC-07-20/21/22 + TC-01-42 (DV-34, 169 → 174 TCs);
+      local 199/199 non-port files (the 18 port cases ride CI);
+      issues #3/#4 closed with evidence; #7–#13 (S5-1..S5-7) closed with
+      `085b7dc`/`bee1e08` evidence; #5 stays open on S4-4.)_
 - [ ] **M1-27** · product-manager · **S** · deps: M1-26 · `todo`
       Acceptance pass against BRIEF §2 on macOS **and** Linux; sign off or file
       defects.
