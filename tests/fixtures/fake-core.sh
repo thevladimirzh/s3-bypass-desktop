@@ -32,6 +32,14 @@
 #     nonutf8         one stdout line containing invalid UTF-8 bytes
 #                     (\377\376), exit 0 — non-UTF-8 core output for
 #                     TC-06-11 (M1-18 batch)
+#     fail-canary     two stderr lines then exit 3: line 1
+#                     `fake-core: simulated fatal storage failure`, line 2
+#                     (last) `failed to open <configPath>: access
+#                     EXAMPLEACCESSKEYID01 denied` where <configPath> is the
+#                     value of the `-c` argv (last-line secret fixture for
+#                     TC-02-06 / S5-2; M1-26 batch, DV-32). Without a `-c`
+#                     arg (standalone `--mode=` debugging) the placeholder
+#                     `<config>` is printed instead — no live paths leak.
 #     anything else   diagnostic on stderr, exit 64 (fixture misuse)
 #
 #   argv     every invocation appends `### pid=$$` + one `arg=<value>` line per
@@ -147,6 +155,21 @@ case "$mode" in
   nonutf8)
     printf 'fake-core: raw bytes \377\376 follow\n'
     exit 0
+    ;;
+  fail-canary)
+    canary_cfg='<config>'
+    expect_cfg=0
+    for value in "$@"; do
+      if [ "$expect_cfg" -eq 1 ]; then
+        canary_cfg=$value
+        expect_cfg=0
+      elif [ "$value" = "-c" ]; then
+        expect_cfg=1
+      fi
+    done
+    printf 'fake-core: simulated fatal storage failure\n' >&2
+    printf 'failed to open %s: access EXAMPLEACCESSKEYID01 denied\n' "$canary_cfg" >&2
+    exit 3
     ;;
   *)
     printf 'fake-core: unknown mode: %s\n' "$mode" >&2
