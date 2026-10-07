@@ -317,5 +317,24 @@ stale done is a bug") and against PRD §7 (P0 changes need owner sign-off). On c
 
 ---
 
-_End of report · file: `docs/qa/acceptance-m1-27.md` · verdict: **NO-GO** (blockers B-01..B-04) ·
+## 8. Owner decisions & waiver (recorded 2026-10-08, after this pass)
+
+The owner answered the §5 QUESTIONS block **in writing** on 2026-10-08 (session record; no
+window without VPN was needed):
+
+| Q      | Decision                                                                                                                                                                                                                                                                  | Effect                                                                                                                                                                                                                                                                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Q1** | **AUTO-ON-START (DV-30(4) resolved):** the system proxy is applied automatically when the tunnel starts; the toggle remains the visible control and can override (off/on) while the core runs.                                                                            | US-04 amended (AC-04.1/04.6/04.7 + narrative). D-01's main half is **fully unblocked**, including issue #5/S4-4 — B-01 is now pure developer work (RED→GREEN).                                                                                                                                                                          |
+| **Q2** | **SOCKS-ONLY (AC-04.1 vs FR-31 resolved):** AC-04.1's `-getsecurewebproxy` literal is removed; FR-31/§3.1 stands — the secure-web proxy is snapshot/restore input only, never modified.                                                                                   | Spec amendment recorded in US-04; B-01's spec precondition is cleared (DV-26(4)(4) answer: no — HTTPS-proxy-on-enable was never intended).                                                                                                                                                                                              |
+| **Q9** | **WAIVER, in writing (Q9b):** acceptance basis = CI both-OS legs on `3a74994` (run `37691582685`) + local 199/199 unit suite + E2E M1-24 evidence (DV-31). The DoD #1 manual script rows, macOS L4 rows (G-03/G-04) and the E2E re-run defer to the M2 fresh-machine DoD. | **B-03 and B-04 are CLEARED by owner waiver.** Waiver scope: only evidence that cannot be executed here (no Linux desktop; macOS script needs the VPN-free port window). It does **not** waive any automated test — CI remains the reference run (DV-33), and D-07's count reconciliation rides along with the docs bundle (issue #17). |
+
+**Verdict effect:** the §6 **NO-GO** stands as issued for this pass. With Q1/Q2 recorded, the
+remaining blockers are **B-01 and B-02 only** — both now pure RED→GREEN developer work tracked
+in board row **M1-27b** (issues #14–#16). **M1-28 may flip once B-01/B-02 close** (B-03/B-04
+waived above); G-01..G-06 carry over to M2 as registered.
+
+---
+
+_End of report · file: `docs/qa/acceptance-m1-27.md` · verdict: **NO-GO** (blockers B-01..B-04;
+§8: Q1/Q2 decided → B-01 actionable, Q9 waived → B-03/B-04 cleared 2026-10-08) ·
 read-only pass: `src/`, `tests/`, configs, plans and other QA docs untouched; no git/gh mutations._

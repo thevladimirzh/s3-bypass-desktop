@@ -191,22 +191,24 @@ core-crashed` transitions and the last error string.
       Defects D-01..D-11 filed as GitHub issues from §4; evidence gaps
       G-01..G-06 + owner questions Q1/Q2/Q9 in §5/§7.)_
 - [ ] **M1-27b** · developer · **M** · deps: M1-27 · `todo`
-      Remediate the M1-27 NO-GO (issues filed from `acceptance-m1-27.md` §4):
-      **D-01** proxy toggle wiring — main half lands with #5/S4-4 once the
-      owner answers Q1 (DV-30(4)) + Q2 (AC-04.1 vs FR-31); renderer half
-      (`onChange → setProxy`, initial `getProxy`, E-PLAT-001 surfacing) is
-      unblocked now; **D-02** `show:false` + `shouldShowWindowOnLaunch()` in
-      `createWindow` (or owner amendment to §2.5); **D-03** pass `desktopEnv`
-      into `systemProxyContext` (S5-10); **D-04..D-10** docs-drift bundle
-      (incl. the stale S5-16 list, deadline M1-27 missed); **D-11** coverage
-      thresholds + CI coverage job (or documented M2 deferral). RED→GREEN per
-      pair, tests additive only. Evidence items **B-03/B-04** clear in one
-      VPN-off window (DoD #1 script + `npm run test:e2e`) or by written owner
-      waiver (report §5 Q9).
+      Remediate the M1-27 NO-GO (issues filed from `acceptance-m1-27.md` §4;
+      **owner Q1/Q2 answered + Q9 waived — report §8, US-04 amended
+      2026-10-08**):
+      **D-01** proxy toggle wiring — fully unblocked: auto-on-start semantics + SOCKS-only per amended AC-04.1/04.6/04.7; main half (`proxy:set`
+      real handler incl. S4-4 validation + auto-apply call site after tunnel
+      Start) lands with #5, renderer half (`onChange → setProxy`, initial
+      `getProxy`, honest state mirror + E-PLAT surfacing); **D-02** `show:false` + `shouldShowWindowOnLaunch()` in `createWindow` (or owner amendment to
+      §2.5); **D-03** pass `desktopEnv` into `systemProxyContext` (S5-10);
+      **D-04..D-10** docs-drift bundle (incl. the stale S5-16 list, deadline
+      M1-27 missed); **D-11** coverage thresholds + CI coverage job (or
+      documented M2 deferral). RED→GREEN per pair, tests additive only.
+      Evidence items **B-03/B-04**: CLEARED by written owner waiver
+      (acceptance §8 Q9 — CI both-OS + 199/199 + E2E M1-24 as basis; desktop
+      manual rows → M2 fresh-machine DoD).
 - [ ] **M1-28** · project-manager · **S** · deps: M1-27 + M1-27b blockers cleared + CI green · `todo`
       Flip M1 to `done` in `milestones.md`; announce handoff → devops (M2).
-      (M1-27 verdict is **NO-GO** — M1-28 may not flip until B-01..B-04 are
-      cleared or waived in writing.)
+      (M1-27 verdict is **NO-GO** — M1-28 may not flip until **B-01/B-02**
+      close via M1-27b; B-03/B-04 already waived in writing, acceptance §8.)
 
 ---
 
