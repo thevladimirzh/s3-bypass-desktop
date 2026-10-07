@@ -87,10 +87,15 @@ export interface LogLine {
   text: string;
 }
 
-/** `profile:import-dialog` result (§4.2): success, user cancel, or NFR-5 failure. */
+/**
+ * `profile:import-dialog` result (§4.2): success, a non-error user refusal
+ * (picker cancel or a declined overwrite — FR-08/FR-01: neither is a failure,
+ * so neither carries an NFR-5 triple), or an NFR-5 failure.
+ */
 export type ProfileImportResult =
   | { ok: true; summary: ProfileSummary }
   | { ok: false; reason: 'cancelled' }
+  | { ok: false; reason: 'declined' }
   | { ok: false; error: AppError };
 
 /** `profile:get` result (§4.2): the summary only — never the full config (FR-55). */

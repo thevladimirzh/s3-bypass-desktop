@@ -278,7 +278,9 @@ ipcMain.handle(IPC_PING, (event: IpcMainInvokeEvent): PingResult => {
 // M1-12 (data-flows (a)): the picker is owned by `main` — the renderer never
 // reads files (FR-01). Picker cancel is not an error (FR-01); the size gate
 // lives inside the validator, so the raw text is handed over untouched (no
-// double gate). Overwrite confirmation (FR-08, step 6) lands with M1-13.
+// double gate). M1-13 (FR-08, data-flows (a) step 6): after validation and
+// before any write, an already-stored profile is confirmed — decline is a
+// NON-error outcome, never an NFR-5 failure (FR-01 cancelled precedent).
 ipcMain.handle(
   'profile:import-dialog',
   async (event: IpcMainInvokeEvent): Promise<ProfileImportResult> => {
@@ -312,7 +314,41 @@ ipcMain.handle(
     // one errors.md §1 triple (FR-11) — no raw parser text, no stack.
     const validation = validateClientConfig(raw);
     if (!validation.ok) {
+      // Validation (data-flows (a) step 4) precedes the overwrite confirmation
+      // (step 6): a known-invalid file never reaches the prompt.
       return { ok: false, error: validation.error };
+    }
+
+    // Step 6 (FR-08): the store is consulted BEFORE the write — `loadProfile()`
+    // answers "is a profile already stored?" (an unreadable blob degrades to
+    // "no profile", errors.md §6 recovery matrix, the rule profile:get applies).
+    let stored: string | null;
+    try {
+      stored = loadProfile();
+    } catch {
+      stored = null;
+    }
+
+    if (stored !== null) {
+      // An existing profile would be overwritten → explicit confirmation first
+      // (FR-08 / AC-01.7), called with exactly the options object, no window.
+      const confirmation = await dialog.showMessageBox({
+        type: 'warning',
+        title: 'Overwrite stored profile',
+        message: 'A profile is already stored on this computer.',
+        detail:
+          'Importing this file will overwrite the stored profile — the previous one will be replaced.',
+        buttons: ['Overwrite', 'Cancel'],
+        // Esc / window-close maps to Cancel (index 1): closing the dialog must
+        // never overwrite a stored profile (FR-08 explicit confirmation).
+        cancelId: 1,
+      });
+      if (confirmation.response !== 0) {
+        // Response 1: refusal is a user CHOICE, not a failure (FR-01
+        // cancelled precedent) — the non-error decline arm, no NFR-5 triple,
+        // and the store is left untouched.
+        return { ok: false, reason: 'declined' };
+      }
     }
 
     // Steps 8-9: the whole document is encrypted at rest (§8.2, A-20);
@@ -323,9 +359,20 @@ ipcMain.handle(
       return { ok: false, error: asAppError(failure, PROFILE_SAVE_FAILED) };
     }
 
+    // §8.3 / FR-05: the stored blob's mtime is the import (or re-import)
+    // moment — the same signal profile:get reports. An absent stat falls back
+    // to "now"; this runs only after a successful save and never raises
+    // (FR-01: a completed import always resolves with its summary).
+    let importedAt: string;
+    try {
+      importedAt = (storedProfileModifiedAt() ?? new Date()).toISOString();
+    } catch {
+      importedAt = new Date().toISOString();
+    }
+
     return {
       ok: true,
-      summary: buildProfileSummary(validation.config, new Date().toISOString()),
+      summary: buildProfileSummary(validation.config, importedAt),
     };
   },
 );
