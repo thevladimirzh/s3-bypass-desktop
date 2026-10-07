@@ -89,13 +89,16 @@ export interface LogLine {
 
 /**
  * `profile:import-dialog` result (§4.2): success, a non-error user refusal
- * (picker cancel or a declined overwrite — FR-08/FR-01: neither is a failure,
- * so neither carries an NFR-5 triple), or an NFR-5 failure.
+ * (picker cancel, a declined overwrite, or a second invoke while the picker
+ * is already open — FR-08/FR-01: none of these is a failure, so none carries
+ * an NFR-5 triple; the `busy` arm is S4-6 / issue #5, M1-26b), or an NFR-5
+ * failure.
  */
 export type ProfileImportResult =
   | { ok: true; summary: ProfileSummary }
   | { ok: false; reason: 'cancelled' }
   | { ok: false; reason: 'declined' }
+  | { ok: false; reason: 'busy' }
   | { ok: false; error: AppError };
 
 /** `profile:get` result (§4.2): the summary only — never the full config (FR-55). */

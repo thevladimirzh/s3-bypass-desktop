@@ -68,6 +68,24 @@ const STORE_FILE = 'profile-store.blob';
 const STORE_FILE_MODE = 0o600;
 
 /**
+ * S4-2a (issue #4, security-m1-26b.md §2): `loadProfile` refuses a blob
+ * larger than this BEFORE reading it — the real store for a ≤1 MiB profile
+ * sits far below, so anything over the cap is a tampering/crafting signal,
+ * never a reason to pull gigabytes into the main process. Cap ≤10 MB per
+ * the issue text; refusal answers the documented `E-STOR-003` triple.
+ */
+const MAX_STORE_BLOB_BYTES = 10 * 1024 * 1024;
+
+/**
+ * S4-2b (issue #4): defensive save-side ceiling — the import validator's
+ * 1 MiB limit (BR-V-02 / `MAX_PROFILE_BYTES` in index.ts) is the real gate;
+ * this stops a caller bug from encrypting and writing unbounded input.
+ * Refused BEFORE the first encrypt call (FR-53 precedent) with the
+ * documented defensive `E-STOR-005` triple.
+ */
+const MAX_PROFILE_JSON_BYTES = 1_048_576;
+
+/**
  * A storage failure as the NFR-5 triple: `code` is internal-only and never
  * part of the plain-language `title` (errors.md §0). The original exception
  * (and any keychain detail it may carry) is deliberately dropped — only the
@@ -104,9 +122,16 @@ function storePath(): string {
  * @throws `SecretStoreError` with `E-STOR-001` when keychain encryption is
  *   unavailable (refused before any encrypt call, no plaintext fallback),
  *   `E-STOR-002` when the keychain refuses the write, `E-STOR-005` when the
- *   file operation fails — in every case nothing unencrypted is written.
+ *   document exceeds the defensive 1 MiB cap (S4-2b, issue #4 — refused
+ *   before the first encrypt call) or the file operation fails — in every
+ *   case nothing unencrypted is written.
  */
 export function saveProfile(profileJson: string): void {
+  if (profileJson.length > MAX_PROFILE_JSON_BYTES) {
+    // S4-2b (issue #4): over the validator's own ceiling can only be a
+    // caller bug — refuse before any encrypt/write work, documented triple.
+    throw new SecretStoreError(ERRORS.STORE_IO_FAILED);
+  }
   if (!safeStorage.isEncryptionAvailable()) {
     // FR-53: refuse before the first encrypt call — no plaintext fallback, ever.
     throw new SecretStoreError(ERRORS.ENCRYPTION_UNAVAILABLE);
@@ -135,14 +160,35 @@ export function saveProfile(profileJson: string): void {
  *
  * @returns exactly the string handed to `saveProfile`, or `null` when nothing
  *   is stored — an absent store is a state, not an error (FR-58).
- * @throws `SecretStoreError` with `E-STOR-003` when the blob exists but cannot
- *   be read or decrypted (corrupt, tampered, legacy or foreign account) — no
- *   crash, no partial plaintext (FR-59).
+ * @throws `SecretStoreError` with `E-STOR-003` when the store path cannot be
+ *   resolved (S4-1, issue #4 — the raw failure never escapes, FR-48) or when
+ *   the blob exists but is oversized (S4-2a: `statSync` cap before any read),
+ *   cannot be read, or cannot be decrypted (corrupt, tampered, legacy or
+ *   foreign account) — no crash, no partial plaintext (FR-59).
  */
 export function loadProfile(): string | null {
-  const path = storePath();
+  let path: string;
+  try {
+    path = storePath();
+  } catch {
+    // S4-1 (issue #4): an unresolvable app data path answers the read-side
+    // documented triple — the raw app.getPath error never reaches a caller.
+    throw new SecretStoreError(ERRORS.STORE_DAMAGED);
+  }
   if (!existsSync(path)) {
     return null;
+  }
+
+  // S4-2a (issue #4): size from METADATA first — a blob over the cap is
+  // refused WITHOUT ever being read or handed to the keychain.
+  let size: number;
+  try {
+    size = statSync(path).size;
+  } catch {
+    throw new SecretStoreError(ERRORS.STORE_DAMAGED);
+  }
+  if (size > MAX_STORE_BLOB_BYTES) {
+    throw new SecretStoreError(ERRORS.STORE_DAMAGED);
   }
 
   let encrypted: Buffer;
@@ -184,7 +230,14 @@ export function deleteStoredProfile(): void {
  * "no timestamp", never as a failure (FR-58: absent is not an error).
  */
 export function storedProfileModifiedAt(): Date | null {
-  const path = storePath();
+  let path: string;
+  try {
+    path = storePath();
+  } catch {
+    // S4-1 (issue #4): path failure answers "no timestamp" — this accessor
+    // never throws (FR-58: unknown is a state, not a failure).
+    return null;
+  }
   if (!existsSync(path)) {
     return null;
   }

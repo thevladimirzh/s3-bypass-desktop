@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import {
   app,
@@ -262,14 +263,18 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' };
   });
 
-  // Navigation guard (M0-19 / S3-1 / S5-4): the window may only stay on the
-  // local renderer — a local file when packaged, the dev server URL in a
-  // NON-packaged run only (an inherited env var may never widen a packaged
-  // window's allowlist, issue #10). Remote navigation would keep the preload
-  // attached, so it is denied.
+  // Navigation guard (M0-19 / S3-1 / S5-4 / issue #3): the window may only
+  // stay on the local renderer — the EXACT app document when packaged, the
+  // dev server URL in a NON-packaged run only (an inherited env var may
+  // never widen a packaged window's allowlist, issue #10). Any other URL is
+  // denied: the former blanket `url.startsWith('file://')` let an
+  // attacker-controlled local HTML file navigate the window with the
+  // preload still attached (M1-10 S3-3, security-m1-26b.md §1), so the
+  // file:// arm is now pinned to the same document `loadFile` serves below.
   const devUrl = process.env.ELECTRON_RENDERER_URL;
+  const appDocumentUrl = pathToFileURL(join(__dirname, '../renderer/index.html')).toString();
   const isAllowedNavigation = (url: string): boolean =>
-    url.startsWith('file://') || (!app.isPackaged && devUrl !== undefined && url === devUrl);
+    url === appDocumentUrl || (!app.isPackaged && devUrl !== undefined && url === devUrl);
   win.webContents.on('will-navigate', (event, url) => {
     if (!isAllowedNavigation(url)) event.preventDefault();
   });
@@ -683,115 +688,138 @@ ipcMain.handle(IPC_PING, (event: IpcMainInvokeEvent): PingResult => {
 // double gate). M1-13 (FR-08, data-flows (a) step 6): after validation and
 // before any write, an already-stored profile is confirmed — decline is a
 // NON-error outcome, never an NFR-5 failure (FR-01 cancelled precedent).
+// S4-6 (issue #5 / M1-10, security-m1-26b.md §3): exactly one native import
+// picker may be open at a time. A second renderer invoke while the first
+// modal is up refuses with the NON-error `busy` arm (DV-34(4): M1-13
+// `declined` precedent, DV-19 — no E-* code) instead of stacking a second
+// native dialog; the flag clears in `finally`, so the next invoke re-arms.
+let importDialogInFlight = false;
+
+/** The picker → stat → read → validate → confirm → save journey (data-flows
+ * (a)), behind the in-flight flag registered below (S4-6). */
+async function importDialogFlow(): Promise<ProfileImportResult> {
+  let picked: OpenDialogReturnValue;
+  try {
+    picked = await dialog.showOpenDialog({
+      title: 'Import profile',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON profile', extensions: ['json'] }],
+    });
+  } catch {
+    // errors.md §2 defensive entry — the dialog failure never escapes raw (FR-48).
+    return { ok: false, error: DIALOG_FAILED };
+  }
+
+  const path = picked.filePaths[0];
+  if (picked.canceled || path === undefined) {
+    return { ok: false, reason: 'cancelled' };
+  }
+
+  // S5-5 (issue #11) / FR-02 / BR-V-02 / data-flows (a) step 1: size from
+  // METADATA first — a file over 1 MiB is refused WITHOUT ever being read
+  // (a stat failure keeps FR-06's documented read refusal). The read below
+  // therefore only ever runs for a plausibly small file; the validator's
+  // in-memory gate stays as defense in depth.
+  let size: number;
+  try {
+    size = statSync(path).size;
+  } catch {
+    // FR-06 / US-01 edge: vanished or unstat-able between picker and stat.
+    return { ok: false, error: FILE_READ_FAILED };
+  }
+  if (size > MAX_PROFILE_BYTES) {
+    return { ok: false, error: profileTooLargeError(size) };
+  }
+
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    // FR-06 / US-01 edge: deleted or unreadable between picker and read.
+    return { ok: false, error: FILE_READ_FAILED };
+  }
+
+  // Steps 3-4: size/NUL/parse/schema gates answer here, each with exactly
+  // one errors.md §1 triple (FR-11) — no raw parser text, no stack.
+  const validation = validateClientConfig(raw);
+  if (!validation.ok) {
+    // Validation (data-flows (a) step 4) precedes the overwrite confirmation
+    // (step 6): a known-invalid file never reaches the prompt.
+    return { ok: false, error: validation.error };
+  }
+
+  // Step 6 (FR-08): the store is consulted BEFORE the write — `loadProfile()`
+  // answers "is a profile already stored?" (an unreadable blob degrades to
+  // "no profile", errors.md §6 recovery matrix, the rule profile:get applies).
+  let stored: string | null;
+  try {
+    stored = loadProfile();
+  } catch {
+    stored = null;
+  }
+
+  if (stored !== null) {
+    // An existing profile would be overwritten → explicit confirmation first
+    // (FR-08 / AC-01.7), called with exactly the options object, no window.
+    const confirmation = await dialog.showMessageBox({
+      type: 'warning',
+      title: 'Overwrite stored profile',
+      message: 'A profile is already stored on this computer.',
+      detail:
+        'Importing this file will overwrite the stored profile — the previous one will be replaced.',
+      buttons: ['Overwrite', 'Cancel'],
+      // Esc / window-close maps to Cancel (index 1): closing the dialog must
+      // never overwrite a stored profile (FR-08 explicit confirmation).
+      cancelId: 1,
+    });
+    if (confirmation.response !== 0) {
+      // Response 1: refusal is a user CHOICE, not a failure (FR-01
+      // cancelled precedent) — the non-error decline arm, no NFR-5 triple,
+      // and the store is left untouched.
+      return { ok: false, reason: 'declined' };
+    }
+  }
+
+  // Steps 8-9: the whole document is encrypted at rest (§8.2, A-20);
+  // a keychain or write failure surfaces as its documented E-STOR triple.
+  try {
+    saveProfile(raw);
+  } catch (failure) {
+    return { ok: false, error: asAppError(failure, PROFILE_SAVE_FAILED) };
+  }
+
+  // §8.3 / FR-05: the stored blob's mtime is the import (or re-import)
+  // moment — the same signal profile:get reports. An absent stat falls back
+  // to "now"; this runs only after a successful save and never raises
+  // (FR-01: a completed import always resolves with its summary).
+  let importedAt: string;
+  try {
+    importedAt = (storedProfileModifiedAt() ?? new Date()).toISOString();
+  } catch {
+    importedAt = new Date().toISOString();
+  }
+
+  return {
+    ok: true,
+    summary: buildProfileSummary(validation.config, importedAt),
+  };
+}
+
 ipcMain.handle(
   'profile:import-dialog',
   async (event: IpcMainInvokeEvent): Promise<ProfileImportResult> => {
     assertTrustedSender(event);
-    let picked: OpenDialogReturnValue;
+    // S4-6 (issue #5): refuse a second invoke while a picker is open —
+    // never a second native modal; `finally` re-arms the flag below.
+    if (importDialogInFlight) {
+      return { ok: false, reason: 'busy' };
+    }
+    importDialogInFlight = true;
     try {
-      picked = await dialog.showOpenDialog({
-        title: 'Import profile',
-        properties: ['openFile'],
-        filters: [{ name: 'JSON profile', extensions: ['json'] }],
-      });
-    } catch {
-      // errors.md §2 defensive entry — the dialog failure never escapes raw (FR-48).
-      return { ok: false, error: DIALOG_FAILED };
+      return await importDialogFlow();
+    } finally {
+      importDialogInFlight = false;
     }
-
-    const path = picked.filePaths[0];
-    if (picked.canceled || path === undefined) {
-      return { ok: false, reason: 'cancelled' };
-    }
-
-    // S5-5 (issue #11) / FR-02 / BR-V-02 / data-flows (a) step 1: size from
-    // METADATA first — a file over 1 MiB is refused WITHOUT ever being read
-    // (a stat failure keeps FR-06's documented read refusal). The read below
-    // therefore only ever runs for a plausibly small file; the validator's
-    // in-memory gate stays as defense in depth.
-    let size: number;
-    try {
-      size = statSync(path).size;
-    } catch {
-      // FR-06 / US-01 edge: vanished or unstat-able between picker and stat.
-      return { ok: false, error: FILE_READ_FAILED };
-    }
-    if (size > MAX_PROFILE_BYTES) {
-      return { ok: false, error: profileTooLargeError(size) };
-    }
-
-    let raw: string;
-    try {
-      raw = readFileSync(path, 'utf8');
-    } catch {
-      // FR-06 / US-01 edge: deleted or unreadable between picker and read.
-      return { ok: false, error: FILE_READ_FAILED };
-    }
-
-    // Steps 3-4: size/NUL/parse/schema gates answer here, each with exactly
-    // one errors.md §1 triple (FR-11) — no raw parser text, no stack.
-    const validation = validateClientConfig(raw);
-    if (!validation.ok) {
-      // Validation (data-flows (a) step 4) precedes the overwrite confirmation
-      // (step 6): a known-invalid file never reaches the prompt.
-      return { ok: false, error: validation.error };
-    }
-
-    // Step 6 (FR-08): the store is consulted BEFORE the write — `loadProfile()`
-    // answers "is a profile already stored?" (an unreadable blob degrades to
-    // "no profile", errors.md §6 recovery matrix, the rule profile:get applies).
-    let stored: string | null;
-    try {
-      stored = loadProfile();
-    } catch {
-      stored = null;
-    }
-
-    if (stored !== null) {
-      // An existing profile would be overwritten → explicit confirmation first
-      // (FR-08 / AC-01.7), called with exactly the options object, no window.
-      const confirmation = await dialog.showMessageBox({
-        type: 'warning',
-        title: 'Overwrite stored profile',
-        message: 'A profile is already stored on this computer.',
-        detail:
-          'Importing this file will overwrite the stored profile — the previous one will be replaced.',
-        buttons: ['Overwrite', 'Cancel'],
-        // Esc / window-close maps to Cancel (index 1): closing the dialog must
-        // never overwrite a stored profile (FR-08 explicit confirmation).
-        cancelId: 1,
-      });
-      if (confirmation.response !== 0) {
-        // Response 1: refusal is a user CHOICE, not a failure (FR-01
-        // cancelled precedent) — the non-error decline arm, no NFR-5 triple,
-        // and the store is left untouched.
-        return { ok: false, reason: 'declined' };
-      }
-    }
-
-    // Steps 8-9: the whole document is encrypted at rest (§8.2, A-20);
-    // a keychain or write failure surfaces as its documented E-STOR triple.
-    try {
-      saveProfile(raw);
-    } catch (failure) {
-      return { ok: false, error: asAppError(failure, PROFILE_SAVE_FAILED) };
-    }
-
-    // §8.3 / FR-05: the stored blob's mtime is the import (or re-import)
-    // moment — the same signal profile:get reports. An absent stat falls back
-    // to "now"; this runs only after a successful save and never raises
-    // (FR-01: a completed import always resolves with its summary).
-    let importedAt: string;
-    try {
-      importedAt = (storedProfileModifiedAt() ?? new Date()).toISOString();
-    } catch {
-      importedAt = new Date().toISOString();
-    }
-
-    return {
-      ok: true,
-      summary: buildProfileSummary(validation.config, importedAt),
-    };
   },
 );
 
