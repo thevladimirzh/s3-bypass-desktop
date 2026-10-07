@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -41,7 +42,13 @@ import {
   saveProfile,
   storedProfileModifiedAt,
 } from './secret-store';
-import { buildTrayMenu, type TrayMenuAction } from './window-lifecycle';
+import {
+  type CommandResult,
+  restoreSystemProxy,
+  type SystemProxyContext,
+  type SystemProxySnapshot,
+} from './system-proxy';
+import { buildTrayMenu, createWindowLifecycle, type TrayMenuAction } from './window-lifecycle';
 
 /** `status:changed` push channel (§4.2, FR-63) — a contract literal, never a free string. */
 const STATUS_CHANGED = 'status:changed' satisfies IpcPushChannel;
@@ -98,7 +105,8 @@ logCollector.subscribe((line) => {
 // Tray mirror (FR-24/FR-41, AC-05.4 — M1-17 wiring half): the state reaches
 // the tray as TEXT (menu model + tooltip), never color-only (NFR-5/FR-41).
 // Tray/window actions are main-internal, never IPC (data-flows §4.2 "Not
-// IPC"); the full close-to-tray / quit-teardown wiring lands with M1-23.
+// IPC"); the close-to-tray / quit-teardown wiring is attached in the M1-23
+// lifecycle section below.
 // ————————————————————————————————————————————————————————————————
 
 /**
@@ -143,25 +151,34 @@ function syncTray(state: CoreState): void {
 }
 
 /**
+ * Tray "Show window" (FR-40 / AC-05.3): un-minimize + show + focus the main
+ * window — one implementation shared by the tray menu dispatch and the
+ * lifecycle's `showWindow` dep (data-flows §4.2 "Not IPC": no window handle
+ * inside the pure policy).
+ */
+function showMainWindow(): void {
+  const [win] = BrowserWindow.getAllWindows();
+  if (win !== undefined) {
+    if (win.isMinimized()) {
+      win.restore();
+    }
+    win.show();
+    win.focus();
+  }
+}
+
+/**
  * Tray menu dispatch (data-flows §4.2 "Not IPC"): `start`/`stop` reuse the
  * very same wiring the `core:*` handlers delegate to, `open` shows the main
- * window (FR-40), and `quit` follows the data-flows §5 partial order — stop
- * the core first, then request the exit (the system-proxy revert step lands
- * with M1-21).
+ * window (FR-40), and `quit` runs the ONE shared data-flows §5 teardown —
+ * stop the core, then revert the system proxy, then request the exit (M1-23b,
+ * FR-19/FR-35/FR-42: no shortcut route beside `before-quit`).
  */
 async function dispatchTrayAction(action: TrayMenuAction): Promise<void> {
   switch (action) {
-    case 'open': {
-      const [win] = BrowserWindow.getAllWindows();
-      if (win !== undefined) {
-        if (win.isMinimized()) {
-          win.restore();
-        }
-        win.show();
-        win.focus();
-      }
+    case 'open':
+      showMainWindow();
       return;
-    }
     case 'start':
       await coreWiring.handleStart();
       return;
@@ -169,11 +186,9 @@ async function dispatchTrayAction(action: TrayMenuAction): Promise<void> {
       await coreWiring.handleStop();
       return;
     case 'quit':
-      try {
-        await coreWiring.handleStop();
-      } finally {
-        app.quit();
-      }
+      // Same teardown as `before-quit` (AC-05.5 single shared teardown) —
+      // the policy stops the core, restores the proxy and requests the exit.
+      beginQuit();
       return;
   }
 }
@@ -225,6 +240,24 @@ function createWindow(): BrowserWindow {
   win.webContents.on('will-redirect', (event, url) => {
     if (!isAllowedNavigation(url)) event.preventDefault();
   });
+
+  // M1-23b (FR-39 / US-05 AC-05.2, PR-03 close-to-tray): every close request
+  // routes through the lifecycle policy — verdict 'hide' (not quitting)
+  // prevents the close and HIDES the window to tray (the process and a
+  // running core stay alive); verdict 'close' (quitting) lets the window
+  // really close so the exit can complete (AC-05.5). Registration is
+  // best-effort like `createTray`: a window surface without native close
+  // events must never break startup.
+  try {
+    win.on('close', (event) => {
+      if (windowLifecycle.handleCloseRequest() === 'hide') {
+        event.preventDefault();
+        win.hide();
+      }
+    });
+  } catch {
+    // No native close events on this surface — there is nothing to gate.
+  }
 
   // FR-63: hand the renderer main's current status by push as soon as the
   // page is ready (the renderer additionally calls `status:get` once at
@@ -444,6 +477,129 @@ const coreWiring = createCoreWiring({
   broadcast: (snapshot): void => {
     broadcastStatus(snapshot);
   },
+});
+
+// ————————————————————————————————————————————————————————————————
+// M1-23b (data-flows §5; FR-19/FR-35/FR-39/FR-42; US-05 AC-05.2/AC-05.5,
+// US-04 AC-04.7; PR-03/PR-08): native window-lifecycle wiring — the M1-22
+// policy (window-lifecycle.ts) attached to the real Electron close/quit
+// events, with the system-proxy restore hook and the execFile executor seam.
+// ————————————————————————————————————————————————————————————————
+
+/**
+ * PR-08 executor seam for `SystemProxyContext.run`: executes ONE argv array
+ * through `execFile` (never a shell string — no `exec`/`execSync`/`shell:true`
+ * anywhere in this file), resolving the `{code, stdout, stderr}` shape the
+ * system-proxy module consumes. A non-zero exit maps to its numeric code; a
+ * spawn failure (missing binary) degrades to `-1`, exactly the fail-closed
+ * convention the module applies to a throwing executor (FR-35).
+ *
+ * @param args argv array — `[binary, ...args]`, no shell metacharacters
+ */
+function runExecFile(args: string[]): Promise<CommandResult> {
+  const [command, ...argv] = args;
+  if (command === undefined) {
+    return Promise.resolve({ code: -1, stdout: '', stderr: 'execFile: empty argv' });
+  }
+  return new Promise((resolve) => {
+    execFile(command, argv, { encoding: 'utf8' }, (error, stdout, stderr) => {
+      const code = error === null ? 0 : typeof error.code === 'number' ? error.code : -1;
+      resolve({ code, stdout, stderr });
+    });
+  });
+}
+
+/**
+ * Host context handed to `restoreSystemProxy` (data-flows §3): `platform` is
+ * PASSED IN as `process.platform` (never read by the pure module, PR-01) and
+ * `run` is the injected `execFile` executor above (PR-08).
+ */
+const systemProxyContext: SystemProxyContext = {
+  platform: process.platform,
+  run: runExecFile,
+};
+
+/**
+ * The snapshot `setSystemProxy` would replay on restore. Deliberately `null`
+ * for now: set-on-start is NOT wired in M1-23b (DV-30(4) — US-04's ACs are
+ * user-driven, automation needs an owner/PM spec decision first), so
+ * `restoreSystemProxy(ctx, null)` is the module's documented idempotent
+ * no-op — the restore HOOK itself is wired unconditionally below (FR-35).
+ */
+const proxySnapshot: SystemProxySnapshot | null = null;
+
+/** Main's quit marker (FR-42): true once the app is on its way out. */
+let quitting = false;
+
+/**
+ * True once the quit teardown reached `requestQuit` (the policy's LAST step).
+ * Checked BEFORE `preventDefault` so Electron's re-fired `before-quit` — from
+ * `requestQuit`'s own `app.quit()` — passes through instead of being gated
+ * into a stranded exit (FR-42 "full app exit", AC-05.5).
+ */
+let teardownSettled = false;
+
+/**
+ * The M1-23 lifecycle policy over its Electron/host collaborators (plan
+ * M1-23a deps contract, FR-19/FR-35): `stopCore` takes the very path
+ * `core:stop` delegates to (single stop route), `restoreProxy` delegates to
+ * the system-proxy restore hook UNCONDITIONALLY (no caller-side guard — the
+ * module owns the `snapshot === null` no-op), and `requestQuit` opens the
+ * before-quit gate before asking the host to exit.
+ */
+const windowLifecycle = createWindowLifecycle({
+  isQuitting: () => quitting,
+  stopCore: async (): Promise<void> => {
+    // FR-19: the very path `core:stop` delegates to — one stop route, and
+    // the `{ok:true}` payload of a no-op stop is irrelevant to teardown.
+    await coreWiring.handleStop();
+  },
+  restoreProxy: async (): Promise<void> => {
+    // FR-35 / AC-04.7: UNCONDITIONAL delegation — the module itself owns the
+    // `snapshot === null` idempotent no-op, never a caller-side guard.
+    await restoreSystemProxy(systemProxyContext, proxySnapshot);
+  },
+  showWindow: showMainWindow,
+  startTunnel: async (): Promise<void> => {
+    await coreWiring.handleStart();
+  },
+  stopTunnel: async (): Promise<void> => {
+    await coreWiring.handleStop();
+  },
+  requestQuit: (): void => {
+    // Gate open BEFORE the quit request (see `teardownSettled` above).
+    teardownSettled = true;
+    app.quit();
+  },
+});
+
+/**
+ * The single quit entry (FR-42 / AC-05.5): flips the quit marker — close
+ * verdicts become 'close' from here on — and runs the ONE shared lifecycle
+ * teardown (stop core → restore proxy → requestQuit), shared between the
+ * tray Quit item and `before-quit`. Safe to call repeatedly (the policy is
+ * idempotent: repeated calls await the SAME teardown, M1-22/AC-05.5).
+ */
+function beginQuit(): void {
+  quitting = true;
+  void windowLifecycle.handleBeforeQuit().catch(() => {
+    // Fail closed (AC-05.5): every step is attempted and `requestQuit` is
+    // LAST inside the policy — the rethrown first failure belongs to the
+    // caller to surface, never to a hung or half-finished exit.
+  });
+}
+
+// FR-19 / FR-42 (US-05 AC-05.5, data-flows §5): gate the exit — the FIRST
+// before-quit is cancelled SYNCHRONOUSLY (before any await) so the async
+// teardown can settle first; a before-quit arriving AFTER the teardown
+// reached `requestQuit` is NOT gated again, or Electron would cancel its own
+// re-fired event forever and FR-42's full app exit would never happen.
+app.on('before-quit', (event) => {
+  if (teardownSettled) {
+    return;
+  }
+  event.preventDefault();
+  beginQuit();
 });
 
 // ————————————————————————————————————————————————————————————————
@@ -693,6 +849,13 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // M1-23b (PR-03 "Must be changed"; FR-39 / US-05 AC-05.2): while the tray
+  // exists the process STAYS ALIVE — the scaffold's quit-on-last-window for
+  // non-darwin is the documented conflict with close-to-tray. Fall back to
+  // the platform default only when there is no tray to keep running for.
+  if (tray !== null) {
+    return;
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
