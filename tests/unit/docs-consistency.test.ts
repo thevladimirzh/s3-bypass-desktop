@@ -34,7 +34,8 @@
  * 04 = D-07 E2E run-counts, 05 = D-08 plan IDs traceable into the suite,
  * 06 = D-09 §4.2 statuses, 07 = D-10(a/b) unreachable codes,
  * 08 = D-10(c) pending classification, 09 = D-10(d) quit surfacing,
- * 10 = D-10(f) log collector naming.
+ * 10 = D-10(f) log collector naming, 11 = D-11 coverage gate (batch D,
+ * §14 DV-37 — the family covers docs/config raw-text pins).
  */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -233,5 +234,24 @@ describe('D-10 (S5-16 f) — log entry point named as built (issue #17)', () => 
       DATA_FLOWS,
       'D-10(f): the single-entry-point note must name createLogCollector',
     ).toContain('createLogCollector');
+  });
+});
+
+describe('D-11 — coverage gate mechanically configured (issue #18)', () => {
+  it('config.vitestCoverageGate.thresholdsLines80Configured (TC-DOC-11)', () => {
+    const VITEST_CONFIG = doc('vitest.config.ts');
+    expect(VITEST_CONFIG, 'control: vitest.config.ts resolves').toContain('defineConfig');
+    expect(
+      VITEST_CONFIG,
+      'D-11: vitest.config.ts configures no coverage.thresholds — the strategy §6 ' +
+        '"≥ 80 % lines at M1 exit" gate stays inert; add thresholds.lines ≥ 80 (the CI ' +
+        'coverage job itself is a documented M2 deferral per G-05 — acceptance-m1-27 ' +
+        '§3 D-11, issue #18)',
+    ).toContain('thresholds');
+    const lines = Number(/lines:\s*(\d+)/.exec(VITEST_CONFIG)?.[1] ?? 0);
+    expect(
+      lines,
+      'D-11: coverage.thresholds.lines must be ≥ 80 (strategy §6 "≥ 80 % lines on src/**")',
+    ).toBeGreaterThanOrEqual(80);
   });
 });
