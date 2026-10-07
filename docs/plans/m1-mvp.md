@@ -177,11 +177,36 @@ core-crashed` transitions and the last error string.
       local 199/199 non-port files (the 18 port cases ride CI);
       issues #3/#4 closed with evidence; #7–#13 (S5-1..S5-7) closed with
       `085b7dc`/`bee1e08` evidence; #5 stays open on S4-4.)_
-- [ ] **M1-27** · product-manager · **S** · deps: M1-26 · `todo`
+- [x] **M1-27** · product-manager · **S** · deps: M1-26, M1-26b · `done`
       Acceptance pass against BRIEF §2 on macOS **and** Linux; sign off or file
       defects.
-- [ ] **M1-28** · project-manager · **S** · deps: M1-27 + CI green · `todo`
+      _(Report `docs/qa/acceptance-m1-27.md`: **NO-GO** — §2.4 toggle not
+      wired end-to-end (D-01 high, confirmed in code: `App.tsx` keeps local
+      state, `proxy:set` still E-PLAT-001) and §2.5 launch-hidden never wired
+      (D-02); blockers B-01..B-04 = D-01 (owner Q1+Q2 → wiring, or amendment),
+      D-02 (wiring or §2.5 amendment), B-03 DoD #1 manual script + B-04 stale
+      E2E (VPN-off window or written owner waiver). Everything else PASS:
+      48/48 story ACs mapped, RED→GREEN chain verified, CI both-OS legs green
+      on `3a74994`, security gates met, counts reconcile (174 = 141+9+12+12).
+      Defects D-01..D-11 filed as GitHub issues from §4; evidence gaps
+      G-01..G-06 + owner questions Q1/Q2/Q9 in §5/§7.)_
+- [ ] **M1-27b** · developer · **M** · deps: M1-27 · `todo`
+      Remediate the M1-27 NO-GO (issues filed from `acceptance-m1-27.md` §4):
+      **D-01** proxy toggle wiring — main half lands with #5/S4-4 once the
+      owner answers Q1 (DV-30(4)) + Q2 (AC-04.1 vs FR-31); renderer half
+      (`onChange → setProxy`, initial `getProxy`, E-PLAT-001 surfacing) is
+      unblocked now; **D-02** `show:false` + `shouldShowWindowOnLaunch()` in
+      `createWindow` (or owner amendment to §2.5); **D-03** pass `desktopEnv`
+      into `systemProxyContext` (S5-10); **D-04..D-10** docs-drift bundle
+      (incl. the stale S5-16 list, deadline M1-27 missed); **D-11** coverage
+      thresholds + CI coverage job (or documented M2 deferral). RED→GREEN per
+      pair, tests additive only. Evidence items **B-03/B-04** clear in one
+      VPN-off window (DoD #1 script + `npm run test:e2e`) or by written owner
+      waiver (report §5 Q9).
+- [ ] **M1-28** · project-manager · **S** · deps: M1-27 + M1-27b blockers cleared + CI green · `todo`
       Flip M1 to `done` in `milestones.md`; announce handoff → devops (M2).
+      (M1-27 verdict is **NO-GO** — M1-28 may not flip until B-01..B-04 are
+      cleared or waived in writing.)
 
 ---
 
