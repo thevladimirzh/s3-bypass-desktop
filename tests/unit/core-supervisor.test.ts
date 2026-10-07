@@ -80,6 +80,13 @@
  * free for the spawn-path cases — FR-15 refuses Start while it is held. The
  * RED run below is unaffected (absence RED fires before any port interaction).
  *
+ * Cross-file determinism (§14 DV-33): this file and core-supervisor-hardening
+ * .test.ts BOTH bind 127.0.0.1:10808 with REAL children while vitest runs
+ * test FILES in parallel workers, so DV-29's barriers (WITHIN this file) are
+ * not enough — a lockfile barrier (os.tmpdir()/.port-10808.lock, the
+ * file-level `beforeEach`/`afterEach` below) serializes the two suites
+ * ACROSS files. Barrier/setup addition only: zero assertions touched.
+ *
  * RED status: ABSENCE RED — `src/main/core-supervisor.ts` does not exist; every
  * behavioral case fails through `loadCoreSupervisor()` (dynamic import of a
  * NON-LITERAL specifier so `npm run typecheck` stays exit 0 — see the helper
@@ -93,11 +100,12 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_SOCKS_PORT } from '../../src/shared/constants';
 import type { CoreState, StatusSnapshot } from '../../src/shared/status-machine';
 import {
+  acquirePortLock,
   cleanupScratches,
   type CoreLogLine,
   type CoreSupervisor,
@@ -111,9 +119,12 @@ import {
   loadCoreSupervisor,
   nfr3BudgetMs,
   occupyPortPath,
+  PORT_LOCK_HOOK_TIMEOUT_MS,
+  PORT_LOCK_TIMEOUT_MS,
   readInvocations,
   readSignals,
   reapRecordedChildren,
+  releasePortLock,
   type Scratch,
   waitFor,
   waitForPortFree,
@@ -154,36 +165,59 @@ function restoreFakeEnv(): void {
   }
 }
 
-afterEach(async () => {
-  for (const rig of rigs) {
-    try {
-      if (rig.supervisor.isRunning()) await rig.supervisor.stop();
-    } catch {
-      // best effort — a failed cleanup stop must not mask the real failure
-    }
-  }
-  rigs.length = 0;
-  if (occupant !== null) {
-    occupant.kill('SIGKILL');
-    occupant = null;
-  }
-  await reapRecordedChildren(scratchArgvFiles);
-  scratchArgvFiles.length = 0;
-  // DV-29 port barrier: every holder released above is released ASYNCHRONOUSLY
-  // at the kernel level — the SIGKILLed occupy-port.mjs, the SIGKILLed shell,
-  // and especially the fake-core binder GRANDCHILD (up to 1 s of server.close
-  // fallback after its SIGTERM, i.e. after stop() already resolved). Wait until
-  // 127.0.0.1:10808 is actually free so no test can inherit a held port and
-  // fail its FR-15 pre-check with a foreign E-IO-003 (CI run 37594647160:
-  // TC-02-05 → TC-02-10). Polling, never a fixed sleep; bounded — a real leak
-  // fails here loudly instead of poisoning the next case.
-  await waitForPortFree(
+// DV-33 cross-file port barrier (m1-test-plan §14): this file and
+// core-supervisor-hardening.test.ts both spawn REAL children (and
+// occupy-port.mjs) on 127.0.0.1:10808 while vitest runs test FILES in
+// parallel workers — DV-29's waitForPortFree serializes only WITHIN a file.
+// Acquire the lockfile mutex before every test here; it is released at the
+// END of the afterEach below (after the DV-29 port-free barrier), so every
+// handoff to the other suite is a FREE-port handoff. Failure is loud and
+// named — never a silent skip, never an assertion change (DV-33).
+beforeEach(async () => {
+  await acquirePortLock(
     DEFAULT_SOCKS_PORT,
-    5000,
-    'afterEach cleanup: 127.0.0.1:10808 released by the finished test',
+    PORT_LOCK_TIMEOUT_MS,
+    'the DV-33 cross-file lock for 127.0.0.1:10808 (held by the other supervisor suite)',
   );
-  restoreFakeEnv();
-  cleanupScratches();
+}, PORT_LOCK_HOOK_TIMEOUT_MS);
+
+afterEach(async () => {
+  try {
+    for (const rig of rigs) {
+      try {
+        if (rig.supervisor.isRunning()) await rig.supervisor.stop();
+      } catch {
+        // best effort — a failed cleanup stop must not mask the real failure
+      }
+    }
+    rigs.length = 0;
+    if (occupant !== null) {
+      occupant.kill('SIGKILL');
+      occupant = null;
+    }
+    await reapRecordedChildren(scratchArgvFiles);
+    scratchArgvFiles.length = 0;
+    // DV-29 port barrier: every holder released above is released ASYNCHRONOUSLY
+    // at the kernel level — the SIGKILLed occupy-port.mjs, the SIGKILLed shell,
+    // and especially the fake-core binder GRANDCHILD (up to 1 s of server.close
+    // fallback after its SIGTERM, i.e. after stop() already resolved). Wait until
+    // 127.0.0.1:10808 is actually free so no test can inherit a held port and
+    // fail its FR-15 pre-check with a foreign E-IO-003 (CI run 37594647160:
+    // TC-02-05 → TC-02-10). Polling, never a fixed sleep; bounded — a real leak
+    // fails here loudly instead of poisoning the next case.
+    await waitForPortFree(
+      DEFAULT_SOCKS_PORT,
+      5000,
+      'afterEach cleanup: 127.0.0.1:10808 released by the finished test',
+    );
+    restoreFakeEnv();
+    cleanupScratches();
+  } finally {
+    // DV-33: release only AFTER the barrier above proved 127.0.0.1:10808 free
+    // (or after a genuine leak already failed this hook loudly) — in `finally`
+    // so a failing test can never wedge the other suite on a forgotten lock.
+    releasePortLock(DEFAULT_SOCKS_PORT);
+  }
 });
 
 /**

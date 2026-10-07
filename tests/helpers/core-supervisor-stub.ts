@@ -20,7 +20,15 @@
  * This file is a helper, not a suite: `vitest.config.ts` collects only
  * `*.test.ts(x)` under `tests/`.
  */
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { connect, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -285,6 +293,187 @@ export async function waitForPortFree(
       throw new Error(`timed out after ${timeoutMs} ms waiting for ${what}`);
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DV-33 — CROSS-file port-owner lock (the DV-29 successor for the ACROSS-file
+// race). DV-29's `waitForPortFree` serializes only WITHIN one test file, but
+// vitest runs test FILES in parallel workers: `tests/unit/core-supervisor
+// .test.ts` and `tests/unit/core-supervisor-hardening.test.ts` BOTH spawn real
+// children (and `occupy-port.mjs`) on 127.0.0.1:10808, so a hardening-case
+// spawn can lose the bind race to a supervisor-case spawn and surface as an
+// EADDRINUSE re-spawn retry (a second child invocation in TC-02-12, D3) or a
+// foreign `E-IO-003`/`E-CORE-00x`. Both suites acquire this lock in their
+// file-level `beforeEach` and release it at the END of their file-level
+// `afterEach`, AFTER the DV-29 port-free barrier — so every lock handoff is a
+// FREE-port handoff. All waits are POLL-bounded and jittered (15–24 ms — never
+// a fixed sleep). Additive barrier only: no assertion in either file is
+// touched; the lock can only fail earlier and clearer (DV-29 rule).
+//
+// Locking semantics:
+//  · acquire   — `writeFileSync(path, pid, { flag: 'wx' })` is O_EXCL-atomic
+//    across processes, on EEXIST poll until the holder releases, bounded by
+//    `timeoutMs`, then throw naming `what` + the current owner (fail loud —
+//    never proceed without the lock). Idempotent per module instance.
+//  · release   — unlink only when THIS module instance holds the lock (in-
+//    memory flag) and the bytes on disk are still our own pid line; runs in
+//    `afterEach`'s `finally`, so a failing test/cleanup can never wedge the
+//    other suite on a forgotten lock. Idempotent.
+//  · stale takeover — the lock is stale when (a) its pid no longer exists
+//    (ESRCH: crashed worker), (b) it names OUR pid but not this module
+//    instance (leftover of an EARLIER file in the same vitest worker — module
+//    isolation resets the in-memory flag, the pid does not), or (c) its age
+//    exceeds the stale bound (pid-reuse / corrupt-content guard; unparsable
+//    content gets a short grace so a half-written atomic create is never
+//    stolen). The bytes are re-read immediately before `unlink` so a fresh
+//    lock created in the meantime is respected (TOCTOU window ≈ microseconds).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Lock-file path for one port (os.tmpdir()-scoped, shared across processes). */
+export function portLockPath(port: number): string {
+  return join(tmpdir(), `.port-${port}.lock`);
+}
+
+/**
+ * Acquisition bound: must outlast the longest legitimate hold — one test
+ * (≤ 30 s budget) plus its `afterEach` (≤ 10 s hook) — with a wide margin for
+ * queuing behind the other suite's tests and for concurrent runs.
+ */
+export const PORT_LOCK_TIMEOUT_MS = 120_000;
+
+/** `beforeEach` hook timeout for the acquisition (must exceed the bound above). */
+export const PORT_LOCK_HOOK_TIMEOUT_MS = PORT_LOCK_TIMEOUT_MS + 30_000;
+
+/** A live holder cannot legitimately hold longer than test+hook — older = stale. */
+const PORT_LOCK_STALE_MS = 180_000;
+
+/** Unparsable content younger than this may be an in-flight atomic create. */
+const PORT_LOCK_GRACE_MS = 10_000;
+
+/** Poll cadence while waiting: 15–24 ms jittered — never a fixed sleep. */
+const PORT_LOCK_POLL_MIN_MS = 15;
+const PORT_LOCK_POLL_JITTER_MS = 10;
+
+/** Ports whose lock THIS module instance (this test file) currently owns. */
+const portLocksHeld = new Set<number>();
+
+interface PortLockSnapshot {
+  /** File bytes as read — the identity used to keep takeover windows tiny. */
+  readonly raw: string;
+  /** Parsed holder pid, or null when the content is unreadable/corrupt. */
+  readonly pid: number | null;
+  readonly ageMs: number;
+}
+
+/** Reads the lock file; null when absent (or raced away). Never throws. */
+function readPortLock(port: number): PortLockSnapshot | null {
+  const path = portLockPath(port);
+  try {
+    const raw = readFileSync(path, 'utf8');
+    const ageMs = Date.now() - statSync(path).mtimeMs;
+    const pid = Number(raw.trim());
+    return { raw, pid: Number.isInteger(pid) && pid > 0 ? pid : null, ageMs };
+  } catch {
+    return null;
+  }
+}
+
+/** True only when a process with this pid exists (EPERM = exists, not ours). */
+function processExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/** The three stale rules — see the DV-33 header block above. */
+function isStaleLock(snapshot: PortLockSnapshot, port: number): boolean {
+  if (snapshot.pid === process.pid && !portLocksHeld.has(port)) return true; // leftover in this worker
+  if (snapshot.pid !== null && !processExists(snapshot.pid)) return true; // holder crashed/exited
+  if (snapshot.ageMs > PORT_LOCK_STALE_MS) return true; // pid-reuse / corrupt-content guard
+  if (snapshot.pid === null && snapshot.ageMs > PORT_LOCK_GRACE_MS) return true; // unreadable leftover
+  return false;
+}
+
+/**
+ * Cross-file mutex for tests that spawn a real child on 127.0.0.1:`port`.
+ * Poll-bounded: throws with `what` (+ the current owner) on timeout so a
+ * genuine deadlock fails loudly with its reason instead of hanging a hook.
+ */
+export async function acquirePortLock(
+  port: number,
+  timeoutMs: number,
+  what: string,
+): Promise<void> {
+  if (portLocksHeld.has(port)) return; // idempotent — one owner per module instance
+  const path = portLockPath(port);
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      writeFileSync(path, `${process.pid}\n`, { flag: 'wx' });
+      portLocksHeld.add(port);
+      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    const held = readPortLock(port);
+    let retryNow = false;
+    if (held !== null && isStaleLock(held, port)) {
+      // Re-read right before unlink: only remove the lock if its bytes are
+      // still the ones judged stale — a fresh lock created meanwhile is
+      // respected, never clobbered.
+      const still = readPortLock(port);
+      if (still !== null && still.raw === held.raw) {
+        try {
+          unlinkSync(path);
+          retryNow = true;
+        } catch (error) {
+          // ENOENT → already gone, retry at once; anything else → bounded wait.
+          retryNow = (error as NodeJS.ErrnoException).code === 'ENOENT';
+        }
+      }
+    }
+    if (Date.now() >= deadline) {
+      const owner = readPortLock(port);
+      throw new Error(
+        `timed out after ${timeoutMs} ms waiting for ${what} — lock ${path} owned by ` +
+          `pid ${owner?.pid ?? 'unreadable'}`,
+      );
+    }
+    if (retryNow) continue;
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        PORT_LOCK_POLL_MIN_MS + Math.floor(Math.random() * PORT_LOCK_POLL_JITTER_MS),
+      ),
+    );
+  }
+}
+
+/**
+ * Releases the lock this module instance acquired (idempotent). Unlinks only
+ * when the bytes on disk are still our own pid line — a lock a stale-taker
+ * replaced is left alone; an unlink failure is reclaimed later through the
+ * dead-pid rule (the pid dies with the worker).
+ */
+export function releasePortLock(port: number): void {
+  if (!portLocksHeld.has(port)) return;
+  portLocksHeld.delete(port);
+  const path = portLockPath(port);
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    return; // already released (or never persisted)
+  }
+  if (raw !== `${process.pid}\n`) return; // replaced meanwhile — leave the new owner's lock
+  try {
+    unlinkSync(path);
+  } catch {
+    // best effort — the dead-pid stale rule reclaims it if this pid never dies cleanly
   }
 }
 

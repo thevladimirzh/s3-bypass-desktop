@@ -21,6 +21,12 @@
  * — the rig below is the core-supervisor.test.ts harness copied per the batch
  * plan (module-local rig: `tests/` files never import each other's suites),
  * including the DV-29 port barrier, child reaping and env restoration.
+ * Cross-file determinism (§14 DV-33): both this file and core-supervisor
+ * .test.ts bind 127.0.0.1:10808 with REAL children while vitest runs test
+ * FILES in parallel workers, so the file-level `beforeEach`/`afterEach` below
+ * additionally take the DV-33 lockfile mutex (os.tmpdir()/.port-10808.lock)
+ * shared with that suite — barrier/setup addition only, zero assertions
+ * touched.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * CONTRACT FOR M1-26 (header-contract style, DV-09/DV-16; any deviation
@@ -65,12 +71,13 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_SOCKS_PORT } from '../../src/shared/constants';
 import type { OperationResult } from '../../src/shared/ipc';
 import type { StatusSnapshot } from '../../src/shared/status-machine';
 import {
+  acquirePortLock,
   cleanupScratches,
   type CoreLogLine,
   type CoreSupervisor,
@@ -79,8 +86,11 @@ import {
   fakeCorePath,
   isProcessGone,
   loadCoreSupervisor,
+  PORT_LOCK_HOOK_TIMEOUT_MS,
+  PORT_LOCK_TIMEOUT_MS,
   readInvocations,
   reapRecordedChildren,
+  releasePortLock,
   type Scratch,
   waitFor,
   waitForPortFree,
@@ -123,26 +133,49 @@ function restoreFakeEnv(): void {
   }
 }
 
-afterEach(async () => {
-  for (const rig of rigs) {
-    try {
-      if (rig.supervisor.isRunning()) await rig.supervisor.stop();
-    } catch {
-      // best effort — a failed cleanup stop must not mask the real failure
-    }
-  }
-  rigs.length = 0;
-  await reapRecordedChildren(scratchArgvFiles);
-  scratchArgvFiles.length = 0;
-  // DV-29 port barrier: holders release asynchronously at the kernel level —
-  // wait until 127.0.0.1:10808 is actually free (polling, never a sleep).
-  await waitForPortFree(
+// DV-33 cross-file port barrier (m1-test-plan §14): this file and
+// core-supervisor.test.ts both spawn REAL children on 127.0.0.1:10808 while
+// vitest runs test FILES in parallel workers — DV-29's waitForPortFree
+// serializes only WITHIN a file (e.g. TC-05-20's `starting` child vs
+// TC-02-12's single-child pin in the other suite). Acquire the lockfile mutex
+// before every test here; it is released at the END of the afterEach below
+// (after the DV-29 port-free barrier). Loud, named failure — never a silent
+// skip, never an assertion change (DV-33).
+beforeEach(async () => {
+  await acquirePortLock(
     DEFAULT_SOCKS_PORT,
-    5000,
-    'afterEach cleanup: 127.0.0.1:10808 released by the finished test',
+    PORT_LOCK_TIMEOUT_MS,
+    'the DV-33 cross-file lock for 127.0.0.1:10808 (held by the other supervisor suite)',
   );
-  restoreFakeEnv();
-  cleanupScratches();
+}, PORT_LOCK_HOOK_TIMEOUT_MS);
+
+afterEach(async () => {
+  try {
+    for (const rig of rigs) {
+      try {
+        if (rig.supervisor.isRunning()) await rig.supervisor.stop();
+      } catch {
+        // best effort — a failed cleanup stop must not mask the real failure
+      }
+    }
+    rigs.length = 0;
+    await reapRecordedChildren(scratchArgvFiles);
+    scratchArgvFiles.length = 0;
+    // DV-29 port barrier: holders release asynchronously at the kernel level —
+    // wait until 127.0.0.1:10808 is actually free (polling, never a sleep).
+    await waitForPortFree(
+      DEFAULT_SOCKS_PORT,
+      5000,
+      'afterEach cleanup: 127.0.0.1:10808 released by the finished test',
+    );
+    restoreFakeEnv();
+    cleanupScratches();
+  } finally {
+    // DV-33: release only AFTER the barrier above proved 127.0.0.1:10808 free
+    // (or after a genuine leak already failed this hook loudly) — in `finally`
+    // so a failing test can never wedge the other suite on a forgotten lock.
+    releasePortLock(DEFAULT_SOCKS_PORT);
+  }
 });
 
 /** Rig copied from tests/unit/core-supervisor.test.ts (mode on env, argv recorded). */
