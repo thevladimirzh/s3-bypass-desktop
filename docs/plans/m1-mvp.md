@@ -156,15 +156,19 @@ core-crashed` transitions and the last error string.
       _(Verdict **PASS-with-blockers**: 0 critical, 1 high (S5-1), 6 medium
       (S5-2..7) → issues #7–#13, deadlines M1-26; report
       `docs/qa/security-m1-25.md`; issue #1 not regressed, #6 closed.)_
-- [ ] **M1-26** · developer · **S** · deps: M1-25 · `todo`
+- [x] **M1-26** · developer · **S** · deps: M1-25 · `done`
       Remediate security findings; regression tests added for each fix (RED first).
-      _(Scope: S5-1..S5-7 = issues #7–#13; QA RED batch first, then GREEN.)_
+      _(S5-1..S5-7 = issues #7–#13 fixed; RED `085b7dc` → GREEN `bee1e08`;
+      209/0 after DV-33 cross-file port mutex `e5720e3`; D3 supervisor
+      TOCTOU-grace/re-spawn addition flagged for security review in M1-26b.)_
 - [ ] **M1-26b** · developer · **S** · deps: M1-25 · `todo`
       Stale M1-10 follow-ups before the M1-28 gate: issues #3 (exact-path
       navigation), #4 (secret-store hardening — deadline M1-12 **missed**),
       #5 (broadcast targeting/payload validation/throttling — features now
       landed). Verify each against current code; RED first where still open;
-      close with evidence where already covered.
+      close with evidence where already covered. **+ security review of dev
+      deviation D3** (supervisor TOCTOU port grace ≤3 s + bounded EADDRINUSE
+      re-spawn, M1-26 GREEN) — sign off or file a follow-up.
 - [ ] **M1-27** · product-manager · **S** · deps: M1-26 · `todo`
       Acceptance pass against BRIEF §2 on macOS **and** Linux; sign off or file
       defects.
