@@ -29,7 +29,6 @@ import type {
   ProfileSummary,
   ProfileView,
   ProxyState,
-  ProxyToggleRequest,
   StatusSnapshot,
 } from '../shared/ipc';
 import { type AppError, type CoreState } from '../shared/status-machine';
@@ -46,7 +45,9 @@ import {
 } from './secret-store';
 import {
   type CommandResult,
+  isSupportedPlatform,
   restoreSystemProxy,
+  setSystemProxy,
   type SystemProxyContext,
   type SystemProxySnapshot,
 } from './system-proxy';
@@ -215,10 +216,13 @@ async function dispatchTrayAction(action: TrayMenuAction): Promise<void> {
       showMainWindow();
       return;
     case 'start':
-      await coreWiring.handleStart();
+      // M1-27b (amended AC-04.1, owner Q1): the tray route runs the ONE
+      // start sequence — auto-on-start cannot be skipped by changing entry point.
+      await runStartRoute(() => coreWiring.handleStart());
       return;
     case 'stop':
-      await coreWiring.handleStop();
+      // M1-27b (AC-04.7): the ONE stop sequence — revert runs here too.
+      await runStopRoute(() => coreWiring.handleStop());
       return;
     case 'quit':
       // Same teardown as `before-quit` (AC-05.5 single shared teardown) —
@@ -248,6 +252,13 @@ function createWindow(): BrowserWindow {
     width: 960,
     height: 640,
     title: APP_NAME,
+    // M1-27b (D-02, blocker B-02, issue #15): the window is CREATED hidden —
+    // BRIEF §2.5 "app starts hidden to tray", FR-38, US-05 AC-05.1. Whether
+    // anything shows right away is the lifecycle policy's call (consulted on
+    // the launch path below), never the constructor's show-default: the old
+    // missing `show` key made Electron display the window on EVERY launch
+    // (DV-27(3)).
+    show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -576,17 +587,105 @@ function runExecFile(args: string[]): Promise<CommandResult> {
  */
 const systemProxyContext: SystemProxyContext = {
   platform: process.platform,
+  // M1-27b D-03 / S5-10 (issue #16): the desktop environment rides into
+  // every call — without it `isSupportedPlatform('linux', undefined)` can
+  // never answer supported, so AC-04.2 would fail on GNOME (data-flows §3
+  // SUPPORT DETECT; the value is PASSED IN, the pure module never reads env).
+  desktopEnv: process.env.XDG_CURRENT_DESKTOP,
   run: runExecFile,
 };
 
 /**
- * The snapshot `setSystemProxy` would replay on restore. Deliberately `null`
- * for now: set-on-start is NOT wired in M1-23b (DV-30(4) — US-04's ACs are
- * user-driven, automation needs an owner/PM spec decision first), so
- * `restoreSystemProxy(ctx, null)` is the module's documented idempotent
- * no-op — the restore HOOK itself is wired unconditionally below (FR-35).
+ * The snapshot `setSystemProxy` captured for the CURRENT apply — replayed
+ * byte-for-byte on restore (FR-31/AC-04.3). LIVE since M1-27b: the
+ * auto-on-start wrapper (owner decision Q1, acceptance-m1-27.md §8) stores it
+ * on a successful apply and clears it only on a successful restore; `null`
+ * means nothing is applied and `restoreSystemProxy(ctx, null)` stays the
+ * module's documented idempotent no-op (FR-35 — the quit teardown below
+ * reads this very variable).
  */
-const proxySnapshot: SystemProxySnapshot | null = null;
+let proxySnapshot: SystemProxySnapshot | null = null;
+
+/**
+ * M1-27b (amended AC-04.1 — owner Q1 AUTO-ON-START): apply the system proxy
+ * once the tunnel reached `running`. The pure platform rule is consulted
+ * FIRST: an unsupported desktop gets NO module call and NO error dialog
+ * (AC-04.5's manual hint stays the answer — no per-start spam). A failed
+ * apply leaves `proxySnapshot` null (nothing partial reported as applied),
+ * does not touch the start result (AC-04.6 — the core keeps running) and
+ * surfaces the module's triple through the import-confirm dialog precedent
+ * (a plain-language surface; A-14: the exact wording is errors.md's own).
+ *
+ * Test-hygiene seam (S4-5 `CORE_BINARY_PATH` pattern): an automated run
+ * (`npm run test:e2e`) sets `DISABLE_AUTO_PROXY=1` so clicking Start in a
+ * fixture never rewrites the HOST proxy — honored ONLY while
+ * `!app.isPackaged`, never inside a package.
+ */
+async function autoApplySystemProxy(): Promise<void> {
+  if (!app.isPackaged && process.env.DISABLE_AUTO_PROXY === '1') {
+    return;
+  }
+  const support = isSupportedPlatform(process.platform, process.env.XDG_CURRENT_DESKTOP);
+  if (!support.supported) {
+    return;
+  }
+  const applied = await setSystemProxy(systemProxyContext);
+  if (applied.ok) {
+    proxySnapshot = applied.snapshot;
+    return;
+  }
+  await dialog.showMessageBox({
+    title: applied.error.title,
+    message: applied.error.cause,
+    detail: applied.error.nextStep,
+  });
+}
+
+/**
+ * M1-27b (AC-04.7): revert the applied system proxy after a graceful stop —
+ * UNCONDITIONAL delegation (the module owns the `snapshot === null` no-op,
+ * the same rule as the quit teardown below) and the stored snapshot is
+ * cleared only on success: an E-PLAT-003 refusal keeps `proxy:get` reporting
+ * the TRUTH (`active:true` — still applied), never a silent leftover; the
+ * renderer's `proxy:set` path surfaces that triple inline.
+ */
+async function restoreAppliedProxy(): Promise<void> {
+  const restored = await restoreSystemProxy(systemProxyContext, proxySnapshot);
+  if (restored.ok) {
+    proxySnapshot = null;
+  }
+}
+
+/**
+ * The ONE start sequence (amended AC-04.1 — owner Q1 AUTO-ON-START): run the
+ * given start route, then auto-apply the system proxy on success, and return
+ * the START result verbatim (AC-04.6 — a failed apply never fakes a start
+ * failure). Every start entry point — the ipc `core:start` handler, the tray
+ * `Start tunnel` action and the lifecycle `startTunnel` dep — passes
+ * `coreWiring.handleStart` through here, so no route can skip the apply
+ * (TC-04-17 pins the ipc + tray routes behaviourally).
+ */
+async function runStartRoute(start: () => Promise<OperationResult>): Promise<OperationResult> {
+  const result = await start();
+  if (result.ok) {
+    await autoApplySystemProxy();
+  }
+  return result;
+}
+
+/**
+ * The ONE stop sequence (AC-04.7): run the given graceful stop route, then
+ * revert the applied proxy on success — same composition as the start side,
+ * so the ipc `core:stop` handler, the tray `Stop tunnel` action and the
+ * lifecycle `stopTunnel` dep all revert on every graceful stop.
+ */
+async function runStopRoute(stop: () => Promise<OperationResult>): Promise<OperationResult> {
+  const result = await stop();
+  if (result.ok) {
+    await restoreAppliedProxy();
+  }
+  return result;
+}
 
 /** Main's quit marker (FR-42): true once the app is on its way out. */
 let quitting = false;
@@ -625,10 +724,13 @@ const windowLifecycle = createWindowLifecycle({
   },
   showWindow: showMainWindow,
   startTunnel: async (): Promise<void> => {
-    await coreWiring.handleStart();
+    // M1-27b: the ONE start sequence — auto-on-start applies on this route too.
+    await runStartRoute(() => coreWiring.handleStart());
   },
   stopTunnel: async (): Promise<void> => {
-    await coreWiring.handleStop();
+    // M1-27b: the ONE stop sequence — graceful `handleStop()` kept (S5-3
+    // contract), now with the AC-04.7 revert on this route too.
+    await runStopRoute(() => coreWiring.handleStop());
   },
   requestQuit: (): void => {
     // Gate open BEFORE the quit request (see `teardownSettled` above).
@@ -862,16 +964,25 @@ ipcMain.handle('profile:remove', (event: IpcMainInvokeEvent): ProfileRemovalResu
 // wiring — the no-profile guard refuses BEFORE any supervisor exists, and a
 // start failure comes back verbatim from the M1-15 pre-checks (the M1-07
 // inline E-IO-004 placeholder is gone).
+// M1-17 (§4.2) + M1-27b: the shared start sequence — the no-profile guard
+// still refuses BEFORE any supervisor exists, a start failure comes back
+// verbatim, and a SUCCESSFUL start auto-applies the system proxy (amended
+// AC-04.1, owner Q1 — acceptance §8; the failure surface there is the
+// dialog, never a fake start failure, AC-04.6). The literal
+// `coreWiring.handleStart` here is the FR-13 wiring pin (TC-03-15 sibling).
 ipcMain.handle('core:start', (event: IpcMainInvokeEvent): Promise<OperationResult> => {
   assertTrustedSender(event);
-  return coreWiring.handleStart();
+  return runStartRoute(() => coreWiring.handleStart());
 });
 
-// M1-17 (§4.2): Stop delegates to the wiring — without a constructed
-// supervisor this is the documented idempotent `{ok:true}` no-op.
+// M1-17 (§4.2) + M1-27b: without a constructed supervisor this stays the
+// documented idempotent `{ok:true}` no-op (the restore inside is the module's
+// own `snapshot === null` no-op); a real graceful stop reverts the applied
+// proxy first-class (AC-04.7). The literal `coreWiring.handleStop` here is
+// the wiring pin (TC-03-15 sibling).
 ipcMain.handle('core:stop', (event: IpcMainInvokeEvent): Promise<OperationResult> => {
   assertTrustedSender(event);
-  return coreWiring.handleStop();
+  return runStopRoute(() => coreWiring.handleStop());
 });
 
 // M1-17 (FR-25): status:get answers the wiring's LIVE snapshot — the latest
@@ -896,34 +1007,56 @@ ipcMain.handle('logs:clear', (event: IpcMainInvokeEvent): { ok: true } => {
   return { ok: true };
 });
 
-// Placeholder until M1-21 (system-proxy module): no automatic control exists
-// yet, so report `supported: false` with the E-PLAT-001 manual-setup values
-// (127.0.0.1:10808 — errors.md §4, AC-04.5).
+// M1-27b (D-01, issue #14): the REAL state report — `supported` answers the
+// pure platform rule (PR-01: platform + $XDG_CURRENT_DESKTOP PASSED IN),
+// `active` mirrors main's stored snapshot (never a renderer-side guess — the
+// checkbox reads exactly this), and `hint` keeps the exact §4.2/AC-04.5
+// loopback values for manual setup (errors.md §4).
 ipcMain.handle('proxy:get', (event: IpcMainInvokeEvent): ProxyState => {
   assertTrustedSender(event);
+  const support = isSupportedPlatform(process.platform, process.env.XDG_CURRENT_DESKTOP);
   return {
-    supported: false,
-    active: false,
+    supported: support.supported,
+    active: proxySnapshot !== null,
     hint: { host: '127.0.0.1', port: DEFAULT_SOCKS_PORT },
   };
 });
 
-// Placeholder until M1-21: never touch the system proxy blindly — return the
-// documented manual-setup hint instead (errors.md §4, E-PLAT-001). The
-// `{ enabled }` payload (§4.2) is honored by the real handler in M1-21.
+// M1-27b (D-01 + S4-4, issues #14/#5): the REAL toggle. The payload guard
+// runs AFTER the sender guard and BEFORE any module call — TS types are
+// erased, so `enabled` must be re-checked at runtime with zero side effects
+// on a malformed payload. The throw follows the house guard precedent
+// (`UntrustedSenderError` in ipc-guard.ts): Electron turns it into an invoke
+// rejection the renderer catches without rendering anything raw (FR-48) —
+// no new E-* code (DV-19). The module owns apply/restore: its `{ok}` answer
+// passes through unchanged and the captured snapshot threads the
+// byte-for-byte restore (FR-31/AC-04.3).
 ipcMain.handle(
   'proxy:set',
-  (event: IpcMainInvokeEvent, _request: ProxyToggleRequest): OperationResult => {
+  async (event: IpcMainInvokeEvent, request: unknown): Promise<OperationResult> => {
     assertTrustedSender(event);
-    return {
-      ok: false,
-      error: {
-        code: 'E-PLAT-001',
-        title: 'Manual proxy setup required',
-        cause: 'Automatic system-proxy control is not supported on this desktop environment.',
-        nextStep: `Set it manually: SOCKS proxy 127.0.0.1, port ${DEFAULT_SOCKS_PORT}.`,
-      },
-    };
+    const enabled =
+      typeof request === 'object' && request !== null
+        ? (request as { readonly enabled?: unknown }).enabled
+        : undefined;
+    if (typeof enabled !== 'boolean') {
+      const error = new Error('proxy:set expects { enabled: boolean } — S4-4 payload guard');
+      error.name = 'InvalidPayloadError';
+      throw error;
+    }
+    if (enabled) {
+      const applied = await setSystemProxy(systemProxyContext);
+      if (applied.ok) {
+        proxySnapshot = applied.snapshot;
+        return { ok: true };
+      }
+      return applied;
+    }
+    const restored = await restoreSystemProxy(systemProxyContext, proxySnapshot);
+    if (restored.ok) {
+      proxySnapshot = null;
+    }
+    return restored;
   },
 );
 
@@ -943,10 +1076,21 @@ app.whenReady().then(() => {
   createTray();
   syncTray(coreWiring.getStatus().state);
 
-  createWindow();
+  // M1-27b (D-02, blocker B-02, issue #15): launch consults the pinned
+  // lifecycle policy instead of the constructor default —
+  // `shouldShowWindowOnLaunch()` answers false for every launch (GREEN since
+  // M1-22 TC-05-14, DV-27(3)), so the first show belongs to tray "Show
+  // window" (FR-40/AC-05.3). The window itself was created hidden above.
+  const launchWindow = createWindow();
+  if (windowLifecycle.shouldShowWindowOnLaunch()) {
+    launchWindow.show();
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      // A dock re-open is an explicit user gesture, not a launch — the newly
+      // created (hidden) window is shown right away (AC-05.3 semantics; the
+      // launch policy governs LAUNCHES only).
+      createWindow().show();
     }
   });
 });

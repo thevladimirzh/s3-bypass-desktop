@@ -27,10 +27,11 @@
  *     `electronApp.evaluate` BEFORE clicking Import.
  *  3. App-state isolation: `src/main/secret-store.ts` persists at
  *     `app.getPath('userData')/profile-store.blob` with NO env override in
- *     `src/main/index.ts` (read: only `CORE_BINARY_PATH`, honored when
- *     `!app.isPackaged`). The launch passes Electron's standard
- *     `--user-data-dir=<per-run temp dir>` switch (verified honored by
- *     `app.getPath('userData')` — no `src/**` change), asserts the app
+ *     `src/main/index.ts` (overrides are read only when `!app.isPackaged`:
+ *     `CORE_BINARY_PATH` plus the M1-27b `DISABLE_AUTO_PROXY` fixture flag
+ *     below — neither touches userData). The launch passes Electron's
+ *     standard `--user-data-dir=<per-run temp dir>` switch (verified honored
+ *     by `app.getPath('userData')` — no `src/**` change), asserts the app
  *     actually resolved to that temp dir (isolation pin: fail loudly instead
  *     of touching real user data), and removes the temp dir in `afterAll`.
  *  4. Port preflight: a BIND probe fails the suite with a clear message when
@@ -40,6 +41,12 @@
  *     readiness probe port, FR-21) — synthetic loopback data only (strategy
  *     §1): fixture config with canary credentials, `example.com` hosts, no
  *     live network.
+ *  6. Host-OS safety (M1-27b, strategy §1): `DISABLE_AUTO_PROXY=1` keeps the
+ *     amended AC-04.1 auto-on-start from ever touching the HOST system
+ *     proxy while this fixture drives Start (honored only when
+ *     `!app.isPackaged` — the S4-5 `CORE_BINARY_PATH` pattern); Stop/quit
+ *     remain the module's `restoreSystemProxy(ctx, null)` no-op (nothing
+ *     was applied, no command runs).
  */
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -119,6 +126,9 @@ function launchEnv(): Record<string, string> {
   env.CORE_BINARY_PATH = FAKE_CORE;
   env.FAKE_CORE_MODE = 'sleep';
   env.FAKE_CORE_PORT = String(SOCKS_PORT);
+  // M1-27b host-OS safety: never rewrite the fixture machine's system proxy
+  // when the smoke's Start auto-applies (strategy §1, S4-5 pattern gate).
+  env.DISABLE_AUTO_PROXY = '1';
   return env;
 }
 

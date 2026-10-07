@@ -210,6 +210,11 @@ vi.mock('../../src/main/secret-store', () => ({
 vi.mock('../../src/main/system-proxy', () => ({
   restoreSystemProxy: vi.fn(async () => ({ ok: true })),
   setSystemProxy: vi.fn(async () => ({ ok: true })),
+  // M1-27b harness surface: index.ts now reads the PURE platform rule
+  // (auto-on-start after `core:start`). Canned `supported:false` keeps the
+  // flood journey's start on the pre-M1-27b behaviour — no auto-apply, no
+  // dialog, zero proxy traffic (the burst itself stays the sole assertion).
+  isSupportedPlatform: () => ({ supported: false }),
 }));
 
 /** The supervisor surface this file's factory fake implements (local, so a

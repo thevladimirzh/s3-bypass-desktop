@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DEFAULT_SOCKS_PORT } from '../../shared/constants';
 import type { AppError, PingResult, ProfileSummary, StatusSnapshot } from '../../shared/ipc';
@@ -43,9 +43,29 @@ export default function App() {
   // `lastError`, kept through the recovery `starting`, cleared only on a
   // successful `→ running` — never by stop/stopped (FR-27).
   const [shownError, setShownError] = useState<AppError | null>(null);
-  // US-04 "One toggle": the local On/Off position — the OS wiring itself
-  // lands with M1-21; this round pins only the status-driven enablement.
+  // US-04 "One toggle" (M1-27b, D-01 / issue #14): the CONFIRMED mirror of
+  // main's applied proxy state — the initial position arrives from
+  // `proxy:get` at mount, the box flips ONLY when a `setProxy` round-trip
+  // answers ok (AC-04.6 — never optimistic), and every main-side change
+  // (auto-on-start / stop-restore, AC-04.1/AC-04.7) is re-read back in.
   const [proxyEnabled, setProxyEnabled] = useState(false);
+  // While a toggle write is in flight its RESULT owns the flip — a
+  // background re-read (push/focus) must not clobber the confirmed state
+  // that is about to land.
+  const proxyWritePending = useRef(false);
+
+  // One confirmed-state mirror: adopt main's `active` flag through
+  // `proxy:get` (the §4.2 channel — a read on events, never a status poll).
+  // Stable identity so effects may depend on it (react-hooks/exhaustive-deps).
+  const readProxyState = useCallback((): void => {
+    if (proxyWritePending.current) return;
+    window.s3Bypass
+      ?.getProxy?.()
+      .then((snapshot) => setProxyEnabled(snapshot.active))
+      .catch(() => {
+        // FR-48: a bridge failure has nothing safe to render — state stays.
+      });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +115,10 @@ export default function App() {
       setShownError((previous) =>
         snapshot.state === 'running' ? null : (snapshot.lastError ?? previous),
       );
+      // M1-27b (AC-04.1/AC-04.7): a push may carry a transition main drove
+      // WITHOUT this window (tray start/stop + auto-on-start/restore) —
+      // re-read the proxy mirror so the toggle shows the HOST, not a guess.
+      readProxyState();
     };
     const unsubscribe = window.s3Bypass?.onStatusChanged?.(applySnapshot);
     window.s3Bypass
@@ -109,7 +133,22 @@ export default function App() {
       cancelled = true;
       unsubscribe?.();
     };
-  }, []);
+  }, [readProxyState]);
+
+  // M1-27b (D-01): the proxy mirror READS at mount (the position is main's
+  // truth, never a guessed default) and re-reads whenever the window
+  // regains focus — a tray-driven start/stop may have changed the host
+  // proxy while the window was hidden, and the status push can race the
+  // auto-apply (main orders the apply AFTER the `running` push; FR-26 keeps
+  // that push single, so focus is the honest re-sync point).
+  useEffect(() => {
+    readProxyState();
+    const onFocus = (): void => readProxyState();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [readProxyState]);
 
   // FR-01/AC-01.1/AC-01.2: success shows the summary and clears any previous
   // error, cancel changes nothing (it is not an error), and only an explicit
@@ -134,10 +173,17 @@ export default function App() {
   // §4.2 core:start / core:stop — the enabled control drives the bridge
   // member once (FR-13); status transitions themselves arrive ONLY as pushes
   // (FR-63), so a result is only surfaced as text when it carries a triple.
+  // M1-27b: a successful round-trip also re-reads the proxy mirror — the
+  // auto-apply/restore happened INSIDE main during this very call
+  // (amended AC-04.1/AC-04.7), so the toggle must follow the HOST result.
   const runTunnelAction = (action: 'startCore' | 'stopCore'): void => {
     window.s3Bypass?.[action]?.()
       .then((result) => {
-        if (!result.ok) setShownError(result.error);
+        if (result.ok) {
+          readProxyState();
+        } else {
+          setShownError(result.error);
+        }
       })
       .catch(() => {
         // Bridge failure with nothing safe to render (FR-48) — state stays.
@@ -203,7 +249,10 @@ export default function App() {
       </section>
       {/* FR-30 / AC-04.4: while the core is not `running` the toggle is
           disabled and the exact hint is visible; a pushed `running` retires
-          the hint. The working On/Off behavior itself stays M1-21's. */}
+          the hint. M1-27b (D-01): the On/Off position is the CONFIRMED mirror
+          driven through the bridge — click sends `setProxy`, the box flips
+          only on {ok:true}, a refused attempt renders the module's triple
+          (AC-04.6) and keeps/returns the box to main's reported truth. */}
       <section className="status proxy">
         <h2>System proxy</h2>
         <label className="proxy-toggle">
@@ -211,7 +260,30 @@ export default function App() {
             type="checkbox"
             checked={proxyEnabled}
             disabled={!running}
-            onChange={() => setProxyEnabled((value) => !value)}
+            onChange={() => {
+              const next = !proxyEnabled;
+              proxyWritePending.current = true;
+              window.s3Bypass
+                ?.setProxy?.({ enabled: next })
+                .then((result) => {
+                  proxyWritePending.current = false;
+                  if (result.ok) {
+                    // Confirmed — flip ONLY here (AC-04.6: never optimistic).
+                    setProxyEnabled(next);
+                  } else {
+                    // Plain-language triple, rendered by the existing
+                    // role=alert area untouched (NFR-5, FR-48: nothing raw).
+                    setShownError(result.error);
+                    readProxyState();
+                  }
+                })
+                .catch(() => {
+                  // Bridge failure (FR-48): nothing safe to render — re-adopt
+                  // main's truth instead of guessing a local position.
+                  proxyWritePending.current = false;
+                  readProxyState();
+                });
+            }}
           />{' '}
           Use system proxy
         </label>
