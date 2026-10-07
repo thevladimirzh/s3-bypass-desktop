@@ -35,29 +35,29 @@ dependencies are satisfied before it opens.
 
 ## Phase B — Foundation: state machine & IPC surface
 
-- [ ] **M1-04** · qa · **S** · deps: M1-02 · `todo`
+- [x] **M1-04** · qa · **S** · deps: M1-02 · `done`
       **RED:** unit tests for core status machine in `src/shared/`:
       `stopped → starting → running → stopped`, `starting/running → core-crashed`,
       last-error retention, invalid transitions rejected.
-- [ ] **M1-05** · developer · **S** · deps: M1-04 · `todo`
+- [x] **M1-05** · developer · **S** · deps: M1-04 · `done`
       **GREEN:** implement status machine + shared types (`src/shared/`).
-- [ ] **M1-06** · qa · **S** · deps: M1-02 · `todo`
+- [x] **M1-06** · qa · **S** · deps: M1-02 · `done`
       **RED:** IPC contract tests — only allowlisted channels reachable from
       renderer; attempting a secret-bearing channel from renderer fails.
-- [ ] **M1-07** · developer · **M** · deps: M1-06 · `todo`
+- [x] **M1-07** · developer · **M** · deps: M1-06 · `done`
       **GREEN:** preload `contextBridge` surface + `ipcMain` handlers per
       `docs/analysis/` contract; status-change push events to renderer.
 
 ## Phase C — Secret storage (BRIEF §2.7)
 
-- [ ] **M1-08** · qa · **S** · deps: M1-02 · `todo`
+- [x] **M1-08** · qa · **S** · deps: M1-02 · `done`
       **RED:** tests for at-rest encryption via `safeStorage`: encrypt→decrypt
       round-trip; written file contains no plaintext key material; decrypt failure
       surfaces a readable error, not a crash.
-- [ ] **M1-09** · developer · **M** · deps: M1-08 · `todo`
+- [x] **M1-09** · developer · **M** · deps: M1-08 · `done`
       **GREEN:** secret-store module in `main` (profile JSON + S3 keys encrypted
       at rest); API only callable from `main` — never exposed on IPC.
-- [ ] **M1-10** · cybersecurity · **S** · deps: M1-07, M1-09 · `todo`
+- [x] **M1-10** · cybersecurity · **S** · deps: M1-07, M1-09 · `done`
       Review #1: IPC surface + secret storage (read-only). Findings → issues;
       `critical/high` block the dependent tasks from `done`.
 
