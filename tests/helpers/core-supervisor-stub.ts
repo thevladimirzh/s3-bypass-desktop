@@ -21,7 +21,7 @@
  * `*.test.ts(x)` under `tests/`.
  */
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { connect } from 'node:net';
+import { connect, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -227,6 +227,63 @@ export async function waitForPortState(
     const listening = await probePort(port);
     if (listening === wantListening) return true;
     if (Date.now() - startedAt > timeoutMs) return false;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
+/**
+ * One bind attempt on 127.0.0.1:`port` — true only when the bind SUCCEEDS,
+ * and the probe server is fully closed before resolving. A successful bind is
+ * the strongest "free" evidence available: it proves nothing else is listening
+ * (so the supervisor's FR-15 connect pre-check would answer "free", never
+ * E-IO-003) AND that the next fixture binder (`fake-core.sh`'s node one-liner,
+ * `occupy-port.mjs`) can bind. EADDRINUSE (or any refusal) → false.
+ */
+function bindProbeFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createServer();
+    let settled = false;
+    const settle = (free: boolean): void => {
+      if (settled) return;
+      settled = true;
+      resolve(free);
+    };
+    server.once('error', () => settle(false)); // EADDRINUSE — still held
+    server.listen({ port, host: '127.0.0.1' }, () => {
+      // Bound → free. Close BEFORE resolving so this probe itself never
+      // leaks the port into the next step.
+      server.close(() => settle(true));
+    });
+  });
+}
+
+/**
+ * Waits until 127.0.0.1:`port` is actually free — the suite's port-leak
+ * barrier (DV-29). Kills are async at the kernel level: `occupy-port.mjs`
+ * dies on SIGKILL asynchronously, and `fake-core.sh`'s binder grandchild may
+ * hold the port for up to 1 s after its SIGTERM (`server.close` fallback),
+ * i.e. AFTER the shell child already exited and `stop()` resolved. Without
+ * this barrier the next test's FR-15 pre-check races the release and answers
+ * E-IO-003 where the test correctly expects its own error (observed on slow
+ * CI: TC-02-05 → TC-02-10, `E-IO-003` vs `E-CORE-002`).
+ *
+ * Polling every 25 ms — never a fixed sleep as synchronization (fixture spec
+ * §9.2) — bounded by `timeoutMs`; throws with `what` on timeout so a genuine
+ * port leak fails the hook/test loudly with its reason instead of silently
+ * poisoning the next case. No assertion passes because of this helper: it can
+ * only fail earlier and clearer (determinism fix, NOT a weakening — DV-29).
+ */
+export async function waitForPortFree(
+  port: number,
+  timeoutMs: number,
+  what = `127.0.0.1:${port} to be released`,
+): Promise<void> {
+  const startedAt = Date.now();
+  for (;;) {
+    if (await bindProbeFree(port)) return;
+    if (Date.now() - startedAt > timeoutMs) {
+      throw new Error(`timed out after ${timeoutMs} ms waiting for ${what}`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 }

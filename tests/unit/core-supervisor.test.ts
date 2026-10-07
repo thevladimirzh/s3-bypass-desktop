@@ -116,6 +116,7 @@ import {
   reapRecordedChildren,
   type Scratch,
   waitFor,
+  waitForPortFree,
   waitForPortState,
 } from '../helpers/core-supervisor-stub';
 import { readConfigFixture } from '../helpers/profile-validator-stub';
@@ -168,6 +169,19 @@ afterEach(async () => {
   }
   await reapRecordedChildren(scratchArgvFiles);
   scratchArgvFiles.length = 0;
+  // DV-29 port barrier: every holder released above is released ASYNCHRONOUSLY
+  // at the kernel level — the SIGKILLed occupy-port.mjs, the SIGKILLed shell,
+  // and especially the fake-core binder GRANDCHILD (up to 1 s of server.close
+  // fallback after its SIGTERM, i.e. after stop() already resolved). Wait until
+  // 127.0.0.1:10808 is actually free so no test can inherit a held port and
+  // fail its FR-15 pre-check with a foreign E-IO-003 (CI run 37594647160:
+  // TC-02-05 → TC-02-10). Polling, never a fixed sleep; bounded — a real leak
+  // fails here loudly instead of poisoning the next case.
+  await waitForPortFree(
+    DEFAULT_SOCKS_PORT,
+    5000,
+    'afterEach cleanup: 127.0.0.1:10808 released by the finished test',
+  );
   restoreFakeEnv();
   cleanupScratches();
 });
@@ -271,6 +285,14 @@ function firstPid(rig: Rig): number {
 describe('supervisor — spawn → running (FR-13, FR-21; data-flows (b) steps 2–5)', () => {
   it('supervisor.start.validProfileSpawnsCoreRunningWithin1s', async () => {
     const rig = await createRig();
+    // DV-29 defensive barrier: the spawn path needs a genuinely free
+    // 127.0.0.1:10808 (FR-15) — a leak from anywhere before this test must
+    // surface HERE with a named reason, not as a confusing E-IO-003 start().
+    await waitForPortFree(
+      DEFAULT_SOCKS_PORT,
+      5000,
+      'TC-02-01: 127.0.0.1:10808 free before start()',
+    );
     const startedAt = Date.now();
     const result = await rig.supervisor.start();
     const elapsed = Date.now() - startedAt;
@@ -642,6 +664,14 @@ describe('supervisor — start failures (FR-14, FR-15, FR-20)', () => {
   it('supervisor.start.port10808Occupied.failsNamingPortOrAnnouncesNewPort', async () => {
     const rig = await createRig(); // module load first: absence RED precedes any port work
 
+    // DV-29: the fixture precondition is that OUR occupier holds the port —
+    // if a leaked holder were already on 10808, occupy-port.mjs would just
+    // log "already held" and this test would pass for the wrong reason.
+    await waitForPortFree(
+      DEFAULT_SOCKS_PORT,
+      5000,
+      'TC-02-05: 127.0.0.1:10808 free before the fixture occupier binds',
+    );
     occupant = spawn('node', [occupyPortPath()], { stdio: 'ignore' });
     expect(
       await waitForPortState(DEFAULT_SOCKS_PORT, true, 5000),
@@ -679,6 +709,16 @@ describe('supervisor — start failures (FR-14, FR-15, FR-20)', () => {
 
   it('supervisor.start.silentCoreNeverReady.timeoutSurfacesReadableError', async () => {
     const rig = await createRig({ mode: 'silent' });
+    // DV-29 defensive barrier (the CI flake, run 37594647160): the preceding
+    // TC-02-05 kill of occupy-port.mjs may not have released 127.0.0.1:10808
+    // yet on a slow runner — then this test's FR-15 pre-check would answer
+    // E-IO-003 where FR-20 requires the readiness timeout E-CORE-002. Wait
+    // for the port to be REALLY free before start(); assertions unchanged.
+    await waitForPortFree(
+      DEFAULT_SOCKS_PORT,
+      5000,
+      'TC-02-10: 127.0.0.1:10808 free before start()',
+    );
     const startedAt = Date.now();
     const result = await rig.supervisor.start();
     const elapsed = Date.now() - startedAt;
