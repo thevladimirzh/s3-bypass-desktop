@@ -2,8 +2,10 @@
  * M1-04 (RED) — core status machine, executable specification.
  *
  * Test plan IDs: TC-03-01, TC-03-02 (machine half), TC-03-03, TC-03-05,
- * TC-03-10, TC-03-11, TC-03-12 (docs/qa/m1-test-plan.md §3) + plan M1-04
- * explicit cases (legal cycle, starting → crashed, purity).
+ * TC-03-10, TC-03-11, TC-03-12, TC-03-17, TC-03-18, TC-03-19, TC-03-20,
+ * TC-03-21 (docs/qa/m1-test-plan.md §3; the last five are the plan M1-04
+ * explicit cases — legal cycle, starting → crashed, purity, typing,
+ * last-error retention — annotated in M1-27b batch C, D-08).
  * Spec sources: docs/analysis/data-flows.md §2.3 (transition table + guards,
  * "guards tested in M1-04"), docs/analysis/requirements.md FR-17, FR-20,
  * FR-25..FR-28, docs/product/stories/US-03-status.md AC-03.2..AC-03.6.
@@ -138,7 +140,7 @@ describe('legal lifecycle (plan M1-04: stopped → starting → running → stop
     expect(snapshot.state).toBe('running');
   });
 
-  it('status.lifecycle.fullCycleReturnsToStoppedThroughStopping', () => {
+  it('status.lifecycle.fullCycleReturnsToStoppedThroughStopping (TC-03-17)', () => {
     // plan M1-04 explicit legal sequence incl. running → stopping → stopped
     // (data-flows §2.3; child exit observed while stopping, exit code ignored).
     let snapshot = expectOk(transition(INITIAL_STATUS, 'start'));
@@ -152,7 +154,7 @@ describe('legal lifecycle (plan M1-04: stopped → starting → running → stop
     expect(snapshot.lastError).toBeNull();
   });
 
-  it('status.startFailure.crashFromStartingGoesCoreCrashedWithLastError', () => {
+  it('status.startFailure.crashFromStartingGoesCoreCrashedWithLastError (TC-03-18)', () => {
     // plan M1-04 explicit `starting → crashed` (spawn failure / start timeout,
     // FR-20 / AC-03.4).
     const starting = expectOk(transition(INITIAL_STATUS, 'start'));
@@ -282,7 +284,7 @@ describe('lastError lifecycle (FR-17, FR-27, data-flows §2.3)', () => {
     expect(snapshot.lastError).toEqual(exitError);
   });
 
-  it('status.lastErrorRetention.clearedOnlyOnSuccessfulRunning', () => {
+  it('status.lastErrorRetention.clearedOnlyOnSuccessfulRunning (TC-03-21)', () => {
     // data-flows §2.3: "lastError retained from crashed, cleared only on
     // successful → running". Not cleared by stop/stopped afterwards either.
     let snapshot = expectOk(
@@ -308,7 +310,7 @@ describe('lastError lifecycle (FR-17, FR-27, data-flows §2.3)', () => {
 });
 
 describe('transition purity (plan M1-04: pure reducer)', () => {
-  it('status.machine.pureReducerLeavesInputSnapshotUnchanged', () => {
+  it('status.machine.pureReducerLeavesInputSnapshotUnchanged (TC-03-19)', () => {
     const snapshot: StatusSnapshot = {
       state: 'running',
       lastError: null,
@@ -324,7 +326,7 @@ describe('transition purity (plan M1-04: pure reducer)', () => {
 });
 
 describe('typing contract (string-literal unions make misuse a compile error)', () => {
-  it('status.types.statesAndEventsAreExactStringLiteralUnions', () => {
+  it('status.types.statesAndEventsAreExactStringLiteralUnions (TC-03-20)', () => {
     expectTypeOf<CoreState>().toEqualTypeOf<
       'stopped' | 'starting' | 'running' | 'stopping' | 'crashed'
     >();

@@ -4,7 +4,7 @@ Status: **proposal only** — `.github/workflows/ci.yml` untouched. Authored wit
 M1-24 smoke (DV-31). Rationale for deferral: `ci.yml` sets
 `ELECTRON_SKIP_BINARY_DOWNLOAD=1` today (no Electron binary in CI), Linux legs need a
 display (xvfb), and safeStorage on headless Linux may hit `E-STOR-001` (no keyring)
-until verified. macOS leg mirrors the locally verified environment (4× green).
+until verified. macOS leg mirrors the locally verified environment (3 consecutive greens + 1 preflight-failure run, DV-31).
 
 ## Proposed job (add to `.github/workflows/ci.yml`)
 

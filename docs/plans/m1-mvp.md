@@ -1,6 +1,6 @@
 # M1 — MVP core loop: task breakdown
 
-Milestone: **M1** (BRIEF §2) · Owner: Project Manager · Status: **in progress** (M1-01..M1-14, M1-18..M1-20 delivered; M1-15 `blocked` — env: local VPN holds `127.0.0.1:10808`, `EADDRINUSE` verified, user must free the port before supervisor GREEN; unpushed local commits held until the full suite is green again)
+Milestone: **M1** (BRIEF §2) · Owner: Project Manager · Status: **in progress** (M1-01..M1-27 delivered; M1-27 acceptance **NO-GO** → M1-27b in progress — remediation issues #14..#18, owner Q1/Q2/Q9 in acceptance §8; M1-28 flips this milestone. Local E2E needs port `127.0.0.1:10808` free — Q9 waiver in place)
 Parent plan: `docs/plans/milestones.md`
 
 **Legend:** task ID · owner · size (S ≈ 0.5 d, M ≈ 0.5–1.5 d, L ≈ 2+ d) · deps · status
@@ -148,7 +148,7 @@ core-crashed` transitions and the last error string.
 - [x] **M1-24** · qa · **M** · deps: M1-13, M1-17, M1-19, M1-21, M1-23b · `done`
       Smoke E2E (Playwright, Electron): import fixture profile → Start → status
       `running` → Logs visible → Stop → status `stopped`.
-      _(TC-E2E-01 green ×4 locally; `npm run test:e2e`; CI integration deferred
+      _(TC-E2E-01: 3 consecutive greens + 1 preflight-failure run (DV-31, m1-test-plan §13); `npm run test:e2e`; CI integration deferred
       per strategy §2 L3 — proposal in `docs/qa/e2e-ci-proposal.md`.)_
 - [x] **M1-25** · cybersecurity · **M** · deps: M1-24 · `done`
       Full MVP security review: S3 key handling, IPC surface, log redaction,
