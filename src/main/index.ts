@@ -1,6 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  type IpcMainInvokeEvent,
+  type OpenDialogReturnValue,
+  shell,
+} from 'electron';
 
 import { APP_NAME, DEFAULT_SOCKS_PORT, IPC_PING } from '../shared/constants';
 import type {
@@ -10,11 +19,20 @@ import type {
   PingResult,
   ProfileImportResult,
   ProfileRemovalResult,
+  ProfileSummary,
   ProfileView,
   ProxyState,
   ProxyToggleRequest,
   StatusSnapshot,
 } from '../shared/ipc';
+import type { AppError } from '../shared/status-machine';
+import { validateClientConfig } from './profile-validator';
+import {
+  deleteStoredProfile,
+  loadProfile,
+  saveProfile,
+  storedProfileModifiedAt,
+} from './secret-store';
 
 /** `status:changed` push channel (§4.2, FR-63) — a contract literal, never a free string. */
 const STATUS_CHANGED = 'status:changed' satisfies IpcPushChannel;
@@ -93,6 +111,153 @@ function createWindow(): BrowserWindow {
 }
 
 // ————————————————————————————————————————————————————————————————
+// Import-pipeline helpers (M1-12, data-flows (a)) — main-internal, never
+// bridged to the renderer (FR-55).
+// ————————————————————————————————————————————————————————————————
+
+/** `errors.md` §2: the picked file vanished between dialog and read (FR-06). */
+const FILE_READ_FAILED: AppError = {
+  code: 'E-IO-001',
+  title: 'Could not read the profile file',
+  cause:
+    'The file could not be read — it may have been moved, deleted, or its permissions changed.',
+  nextStep: 'Check the file still exists, then import again.',
+};
+
+/** `errors.md` §2 defensive entry: the native picker itself failed (FR-01). */
+const DIALOG_FAILED: AppError = {
+  code: 'E-IO-002',
+  title: 'File dialog could not open',
+  cause: 'The system file dialog failed to open.',
+  nextStep: 'Try again; if it repeats, restart the app.',
+};
+
+/** `errors.md` §5 defensive entry: persisting the validated document failed (FR-54). */
+const PROFILE_SAVE_FAILED: AppError = {
+  code: 'E-STOR-005',
+  title: 'Profile could not be saved',
+  cause:
+    'Writing the encrypted profile to the app data directory failed (disk full or permissions).',
+  nextStep: 'Free disk space / fix permissions, then import again.',
+};
+
+/** Structural NFR-5 shape — the store throws `SecretStoreError implements AppError`. */
+function isAppError(value: unknown): value is AppError {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Partial<AppError>;
+  return (
+    typeof candidate.code === 'string' &&
+    typeof candidate.title === 'string' &&
+    typeof candidate.cause === 'string' &&
+    typeof candidate.nextStep === 'string'
+  );
+}
+
+/**
+ * FR-48 / NFR-5: only a documented triple may cross the bridge — a thrown
+ * value that is not already an `AppError` degrades to `fallback` instead of
+ * leaking its message or stack into the renderer.
+ */
+function asAppError(value: unknown, fallback: AppError): AppError {
+  if (isAppError(value)) {
+    return {
+      code: value.code,
+      title: value.title,
+      cause: value.cause,
+      nextStep: value.nextStep,
+    };
+  }
+  return fallback;
+}
+
+/** Plain JSON object guard — arrays and null are never config documents. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** The fedarisha outbound's `settings.storage`, or null when absent. */
+function storageOf(doc: Record<string, unknown>): Record<string, unknown> | null {
+  const outbounds = doc['outbounds'];
+  if (!Array.isArray(outbounds)) {
+    return null;
+  }
+  for (const entry of outbounds) {
+    if (!isRecord(entry) || entry['protocol'] !== 'fedarisha') {
+      continue;
+    }
+    const settings = entry['settings'];
+    if (!isRecord(settings)) {
+      return null;
+    }
+    const storage = settings['storage'];
+    return isRecord(storage) ? storage : null;
+  }
+  return null;
+}
+
+/** A non-empty string field of the storage block — '' when absent. */
+function stringField(storage: Record<string, unknown> | null, key: string): string {
+  const value = storage === null ? undefined : storage[key];
+  return typeof value === 'string' ? value : '';
+}
+
+/** Hostname only (§8.3) — never scheme, path or userinfo. */
+function hostOf(endpoint: string): string {
+  if (endpoint === '') {
+    return '';
+  }
+  try {
+    return new URL(endpoint).hostname;
+  } catch {
+    return '';
+  }
+}
+
+/** Last path segment of `prefix` (fallback: bucket) — the profile's label (§8.3). */
+function labelOf(prefix: string, bucket: string): string {
+  const segments = prefix.split('/').filter((segment) => segment !== '');
+  const last = segments[segments.length - 1];
+  if (last !== undefined && last !== '.' && last !== '..') {
+    return last;
+  }
+  return bucket === '' ? 'profile' : bucket;
+}
+
+/**
+ * §8.3 `ProfileSummary` — the only config shape the renderer may receive
+ * (FR-05/FR-55): internal display fields only — never accessKey, secretKey,
+ * any `*token*` field and never the document itself (§8.4, §4.3 denylist).
+ */
+function buildProfileSummary(doc: Record<string, unknown>, importedAt: string): ProfileSummary {
+  const storage = storageOf(doc);
+  const bucket = stringField(storage, 'bucket');
+  const prefix = stringField(storage, 'prefix');
+  const endpointHost = hostOf(stringField(storage, 'endpoint'));
+  const label = labelOf(prefix, bucket);
+  return {
+    displayName: endpointHost === '' ? label : `${label} @ ${endpointHost}`,
+    endpointHost,
+    bucket,
+    prefix,
+    region: stringField(storage, 'region'),
+    importedAt,
+    socksPort: DEFAULT_SOCKS_PORT,
+  };
+}
+
+/** Parses a stored profile document; a damaged one means "no profile" (§5). */
+function parseStoredProfile(raw: string): Record<string, unknown> | null {
+  try {
+    const doc: unknown = JSON.parse(raw);
+    return isRecord(doc) ? doc : null;
+  } catch {
+    return null;
+  }
+}
+
+// ————————————————————————————————————————————————————————————————
 // §4.2 invoke handlers: one `ipcMain.handle` per R→M channel (FR-61/FR-62).
 // Feature logic lands with later M1 tasks; until then each handler returns
 // the documented §4.2 payload shape — placeholder results where the feature
@@ -106,22 +271,91 @@ ipcMain.handle(IPC_PING, (): PingResult => {
   return { ok: true, app: APP_NAME, socksPort: DEFAULT_SOCKS_PORT };
 });
 
-// Placeholder until M1-12 (picker + validation): no dialog exists yet, so
-// report §4.2's cancel outcome — FR-01 defines cancel as "not an error".
-ipcMain.handle('profile:import-dialog', (): ProfileImportResult => {
-  return { ok: false, reason: 'cancelled' };
+// M1-12 (data-flows (a)): the picker is owned by `main` — the renderer never
+// reads files (FR-01). Picker cancel is not an error (FR-01); the size gate
+// lives inside the validator, so the raw text is handed over untouched (no
+// double gate). Overwrite confirmation (FR-08, step 6) lands with M1-13.
+ipcMain.handle(
+  'profile:import-dialog',
+  async (_event: IpcMainInvokeEvent): Promise<ProfileImportResult> => {
+    let picked: OpenDialogReturnValue;
+    try {
+      picked = await dialog.showOpenDialog({
+        title: 'Import profile',
+        properties: ['openFile'],
+        filters: [{ name: 'JSON profile', extensions: ['json'] }],
+      });
+    } catch {
+      // errors.md §2 defensive entry — the dialog failure never escapes raw (FR-48).
+      return { ok: false, error: DIALOG_FAILED };
+    }
+
+    const path = picked.filePaths[0];
+    if (picked.canceled || path === undefined) {
+      return { ok: false, reason: 'cancelled' };
+    }
+
+    let raw: string;
+    try {
+      raw = readFileSync(path, 'utf8');
+    } catch {
+      // FR-06 / US-01 edge: deleted or unreadable between picker and read.
+      return { ok: false, error: FILE_READ_FAILED };
+    }
+
+    // Steps 3-4: size/NUL/parse/schema gates answer here, each with exactly
+    // one errors.md §1 triple (FR-11) — no raw parser text, no stack.
+    const validation = validateClientConfig(raw);
+    if (!validation.ok) {
+      return { ok: false, error: validation.error };
+    }
+
+    // Steps 8-9: the whole document is encrypted at rest (§8.2, A-20);
+    // a keychain or write failure surfaces as its documented E-STOR triple.
+    try {
+      saveProfile(raw);
+    } catch (failure) {
+      return { ok: false, error: asAppError(failure, PROFILE_SAVE_FAILED) };
+    }
+
+    return {
+      ok: true,
+      summary: buildProfileSummary(validation.config, new Date().toISOString()),
+    };
+  },
+);
+
+// M1-12: main decrypts (FR-55) and returns only the §8.3 summary — never the
+// config document. An unreadable store or a document that no longer parses
+// degrades to "no profile" instead of crashing (data-flows §5, FR-59).
+ipcMain.handle('profile:get', (_event: IpcMainInvokeEvent): ProfileView => {
+  let raw: string | null;
+  try {
+    raw = loadProfile();
+  } catch {
+    return { summary: null };
+  }
+  if (raw === null) {
+    return { summary: null };
+  }
+  const doc = parseStoredProfile(raw);
+  if (doc === null) {
+    return { summary: null };
+  }
+  // The blob's mtime is the import (or re-import) moment of §8.3.
+  const modifiedAt = storedProfileModifiedAt() ?? new Date();
+  return { summary: buildProfileSummary(doc, modifiedAt.toISOString()) };
 });
 
-// Placeholder until M1-13 (secret store): no profile is stored yet — the
-// renderer gets `summary: null`, never a config document (FR-55).
-ipcMain.handle('profile:get', (): ProfileView => {
-  return { summary: null };
-});
-
-// Placeholder until M1-13: nothing is stored, so removal is already
-// satisfied — a safe no-op success instead of a fabricated error.
-ipcMain.handle('profile:remove', (): ProfileRemovalResult => {
-  return { ok: true };
+// M1-12: removal deletes the stored blob itself, not a UI flag (FR-60,
+// AC-07.7); a store failure answers its documented triple, never a raw one.
+ipcMain.handle('profile:remove', (_event: IpcMainInvokeEvent): ProfileRemovalResult => {
+  try {
+    deleteStoredProfile();
+    return { ok: true };
+  } catch (failure) {
+    return { ok: false, error: asAppError(failure, PROFILE_SAVE_FAILED) };
+  }
 });
 
 // Placeholder until the supervisor lands (M1-15): nothing can be spawned

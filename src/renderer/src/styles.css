@@ -33,6 +33,52 @@ body {
   background: #161c22;
 }
 
+.profile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.profile h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.profile-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+
+.profile-summary dt {
+  color: #9fb0c0;
+}
+
+.profile-summary dd {
+  margin: 0;
+}
+
+.profile button {
+  align-self: flex-start;
+  padding: 0.5rem 1rem;
+  border: 1px solid #2a3541;
+  border-radius: 6px;
+  background: #1f2a35;
+  color: #e7edf3;
+  font: inherit;
+  cursor: pointer;
+}
+
+.error {
+  border-left: 3px solid #d97757;
+  padding-left: 0.75rem;
+}
+
+.error p {
+  margin: 0.25rem 0;
+}
+
 footer {
   margin-top: 3rem;
   font-size: 0.85rem;

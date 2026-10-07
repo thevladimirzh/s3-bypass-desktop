@@ -18,7 +18,7 @@
  * docs/analysis/errors.md §5 (E-STOR-001..005 wording);
  * docs/product/stories/US-07-secret-storage.md AC-07.2..AC-07.7.
  */
-import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { app, safeStorage } from 'electron';
@@ -173,5 +173,24 @@ export function deleteStoredProfile(): void {
     rmSync(storePath(), { force: true });
   } catch {
     throw new SecretStoreError(ERRORS.STORE_IO_FAILED);
+  }
+}
+
+/**
+ * Modification time of the encrypted blob — the moment the profile was
+ * imported (or replaced by a re-import), for `ProfileSummary.importedAt`
+ * when `profile:get` rebuilds the summary (requirements §8.3, FR-05).
+ * `null` while no profile is stored; an unreadable stat is treated as
+ * "no timestamp", never as a failure (FR-58: absent is not an error).
+ */
+export function storedProfileModifiedAt(): Date | null {
+  const path = storePath();
+  if (!existsSync(path)) {
+    return null;
+  }
+  try {
+    return statSync(path).mtime;
+  } catch {
+    return null;
   }
 }
