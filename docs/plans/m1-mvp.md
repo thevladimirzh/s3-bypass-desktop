@@ -150,11 +150,21 @@ core-crashed` transitions and the last error string.
       `running` → Logs visible → Stop → status `stopped`.
       _(TC-E2E-01 green ×4 locally; `npm run test:e2e`; CI integration deferred
       per strategy §2 L3 — proposal in `docs/qa/e2e-ci-proposal.md`.)_
-- [ ] **M1-25** · cybersecurity · **M** · deps: M1-24 · `todo`
+- [x] **M1-25** · cybersecurity · **M** · deps: M1-24 · `done`
       Full MVP security review: S3 key handling, IPC surface, log redaction,
       supply chain (BRIEF §5). Gate for external distribution (M2 exit).
+      _(Verdict **PASS-with-blockers**: 0 critical, 1 high (S5-1), 6 medium
+      (S5-2..7) → issues #7–#13, deadlines M1-26; report
+      `docs/qa/security-m1-25.md`; issue #1 not regressed, #6 closed.)_
 - [ ] **M1-26** · developer · **S** · deps: M1-25 · `todo`
       Remediate security findings; regression tests added for each fix (RED first).
+      _(Scope: S5-1..S5-7 = issues #7–#13; QA RED batch first, then GREEN.)_
+- [ ] **M1-26b** · developer · **S** · deps: M1-25 · `todo`
+      Stale M1-10 follow-ups before the M1-28 gate: issues #3 (exact-path
+      navigation), #4 (secret-store hardening — deadline M1-12 **missed**),
+      #5 (broadcast targeting/payload validation/throttling — features now
+      landed). Verify each against current code; RED first where still open;
+      close with evidence where already covered.
 - [ ] **M1-27** · product-manager · **S** · deps: M1-26 · `todo`
       Acceptance pass against BRIEF §2 on macOS **and** Linux; sign off or file
       defects.
@@ -180,6 +190,7 @@ graph LR
   M1-02 --> M1-22 --> M1-23
   M1-17 & M1-23 --> M1-23a --> M1-23b
   M1-13 & M1-17 & M1-19 & M1-21 & M1-23b --> M1-24 --> M1-25 --> M1-26 --> M1-27 --> M1-28
+  M1-25 --> M1-26b --> M1-27
 ```
 
 ## Handoffs (explicit, in order)
