@@ -85,13 +85,18 @@ describe('D-05 — m1-mvp status line reflects current milestone state (issue #1
     expect(
       M1_PLAN,
       'D-05: line 3 still announces M1-15 as `blocked` on the local VPN env hold — ' +
-        'M1-15 is `done`; the status line must name the ACTUAL open work ' +
-        '(M1-27b remediation, issues #14..#18) instead (acceptance §4 D-05)',
+        'M1-15 is `done`; the status line must name the CURRENT milestone reality ' +
+        'instead (acceptance §4 D-05)',
     ).not.toContain('M1-15 `blocked` — env: local VPN holds');
     expect(
       M1_PLAN,
-      'D-05: the status line must state the M1-27b remediation as the open work',
-    ).toContain('M1-27b in progress');
+      'D-05: after the M1-28 flip the status line must read `Status: **done**` ' +
+        '(pin and prose transition land in the same commit — DV-36 contract)',
+    ).toContain('Status: **done**');
+    expect(
+      M1_PLAN,
+      'D-05: the status line must keep the M1-27b remediation in its history',
+    ).toContain('M1-27b');
   });
 });
 

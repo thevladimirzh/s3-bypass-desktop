@@ -1,6 +1,6 @@
 # M1 — MVP core loop: task breakdown
 
-Milestone: **M1** (BRIEF §2) · Owner: Project Manager · Status: **in progress** (M1-01..M1-27 delivered; M1-27 acceptance **NO-GO** → M1-27b in progress — remediation issues #14..#18, owner Q1/Q2/Q9 in acceptance §8; M1-28 flips this milestone. Local E2E needs port `127.0.0.1:10808` free — Q9 waiver in place)
+Milestone: **M1** (BRIEF §2) · Owner: Project Manager · Status: **done** (M1-01..M1-28 delivered — M1-27 acceptance NO-GO remediated in M1-27b, issues #14..#18 closed with evidence, M1-28 flip 2026-10-08; handoff → devops/M2. Local E2E/coverage runs need port `127.0.0.1:10808` free — Q9 waiver, acceptance §8)
 Parent plan: `docs/plans/milestones.md`
 
 **Legend:** task ID · owner · size (S ≈ 0.5 d, M ≈ 0.5–1.5 d, L ≈ 2+ d) · deps · status
@@ -190,7 +190,7 @@ core-crashed` transitions and the last error string.
       on `3a74994`, security gates met, counts reconcile (174 = 141+9+12+12).
       Defects D-01..D-11 filed as GitHub issues from §4; evidence gaps
       G-01..G-06 + owner questions Q1/Q2/Q9 in §5/§7.)_
-- [ ] **M1-27b** · developer · **M** · deps: M1-27 · `todo`
+- [x] **M1-27b** · developer · **M** · deps: M1-27 · `done`
       Remediate the M1-27 NO-GO (issues filed from `acceptance-m1-27.md` §4;
       **owner Q1/Q2 answered + Q9 waived — report §8, US-04 amended
       2026-10-08**):
@@ -205,10 +205,19 @@ core-crashed` transitions and the last error string.
       Evidence items **B-03/B-04**: CLEARED by written owner waiver
       (acceptance §8 Q9 — CI both-OS + 199/199 + E2E M1-24 as basis; desktop
       manual rows → M2 fresh-machine DoD).
-- [ ] **M1-28** · project-manager · **S** · deps: M1-27 + M1-27b blockers cleared + CI green · `todo`
+      **Done 2026-10-08**: RED→GREEN pairs `26bed4a`/`69637ec` (B-01/B-02/D-03 —
+      TC-04-16..19, TC-05-23), `17cd937`/`5009034` (D-04..D-10 — TC-DOC-01..10),
+      `6d97879`/`dbc46eb` (D-11 — TC-DOC-11); issues #14..#18 closed with
+      evidence, #19 filed for the out-of-M1 crash branch; suite 215 passed /
+      0 failed (31 files), CI green both OS (`37700979353`, `37703805927`,
+      `37704539895`).
+- [x] **M1-28** · project-manager · **S** · deps: M1-27 + M1-27b blockers cleared + CI green · `done`
       Flip M1 to `done` in `milestones.md`; announce handoff → devops (M2).
-      (M1-27 verdict is **NO-GO** — M1-28 may not flip until **B-01/B-02**
-      close via M1-27b; B-03/B-04 already waived in writing, acceptance §8.)
+      (M1-27 verdict was **NO-GO** — the flip was only allowed after B-01/B-02
+      closed via M1-27b; B-03/B-04 waived in writing, acceptance §8.)
+      **Done 2026-10-08**: B-01/B-02 closed (#14/#15/#16), D-04..D-11 closed
+      (#17/#18), CI green both OS (`37704539895`); M1 flipped in
+      `milestones.md`, handoff → devops (M2) announced in the same commit.
 
 ---
 
