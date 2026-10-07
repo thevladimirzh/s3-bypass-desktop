@@ -1,0 +1,124 @@
+#!/bin/sh
+# fake-core.sh — stub core binary for the M1-14 supervisor integration tests
+# (docs/qa/m1-test-plan.md §9.2; plan R-1: no real Xray binary until M2).
+#
+# POSIX sh, works on macOS (bash-as-sh) and Linux CI (dash). Synthetic data
+# only, loopback only, no network beyond 127.0.0.1 (strategy §1).
+#
+# Fixture contract (pinned by tests/unit/core-supervisor.test.ts, DV-22):
+#
+#   mode     selected via env FAKE_CORE_MODE (the supervisor's own argv is the
+#            documented data-flows (b) step-4 array `[run, -c, T]`, so the mode
+#            cannot travel on argv) — `--mode=<name>` argv is accepted for
+#            standalone debugging (`sh tests/fixtures/fake-core.sh --mode=…`):
+#     sleep | ready   print `READY` on stdout, bind 127.0.0.1:$FAKE_CORE_PORT
+#                     (default 10808) via a node helper, wait for SIGTERM,
+#                     record the signal, kill the helper, exit 0 (FR-16/FR-21)
+#     chatty          same as sleep, preceded by 2 stdout + 2 stderr lines
+#                     (line-based log-sink pin, data-flows (b) step 6)
+#     fail | exit-nonzero
+#                     print a diagnostic line on stderr, exit 3 (FR-17 →
+#                     E-CORE-001; the plan-time "exit 1" expectation was
+#                     replaced by exit 3, DV-22)
+#     silent          no output, never binds, sleep until killed (FR-20
+#                     start-timeout path)
+#     anything else   diagnostic on stderr, exit 64 (fixture misuse)
+#
+#   argv     every invocation appends `### pid=$$` + one `arg=<value>` line per
+#            argument to $FAKE_CORE_ARGV_FILE (if set) — the test proves the
+#            supervisor passed exactly `run -c <configPath>` (PR-08, step 4).
+#   signals  a trapped SIGTERM appends `TERM` to $FAKE_CORE_SIGNAL_FILE (if
+#            set) before a clean exit 0 — the stop-path signal pin (FR-16).
+#   port     FAKE_CORE_PORT overrides the bound port (default 10808); the
+#            supervisor probes DEFAULT_SOCKS_PORT (src/shared/constants.ts).
+set -u
+
+mode=sleep
+mode_from_argv=0
+for arg in "$@"; do
+  case "$arg" in
+    --mode=*)
+      mode=${arg#--mode=}
+      mode_from_argv=1
+      ;;
+  esac
+done
+if [ "$mode_from_argv" -eq 0 ] && [ -n "${FAKE_CORE_MODE:-}" ]; then
+  mode=$FAKE_CORE_MODE
+fi
+
+record_argv() {
+  if [ -n "${FAKE_CORE_ARGV_FILE:-}" ]; then
+    {
+      printf '### pid=%s\n' "$$"
+      for value in "$@"; do
+        printf 'arg=%s\n' "$value"
+      done
+    } >>"$FAKE_CORE_ARGV_FILE"
+  fi
+}
+
+record_signal() {
+  if [ -n "${FAKE_CORE_SIGNAL_FILE:-}" ]; then
+    printf '%s\n' "$1" >>"$FAKE_CORE_SIGNAL_FILE"
+  fi
+}
+
+binder_pid=
+
+on_term() {
+  record_signal TERM
+  if [ -n "$binder_pid" ]; then
+    kill "$binder_pid" 2>/dev/null || :
+  fi
+  exit 0
+}
+
+start_binder() {
+  # sh cannot bind a TCP port; a node one-liner stands in for the core's
+  # SOCKS inbound so the supervisor's documented readiness probe (FR-21/A-12:
+  # TCP connect to 127.0.0.1:10808) has something real to connect to.
+  node -e '
+    const net = require("node:net");
+    const port = Number(process.env.FAKE_CORE_PORT || 10808);
+    const server = net.createServer();
+    server.listen(port, "127.0.0.1");
+    process.on("SIGTERM", () => {
+      server.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 1000); // do not wait on a lingering probe socket
+    });
+  ' &
+  binder_pid=$!
+}
+
+record_argv "$@"
+
+case "$mode" in
+  sleep | ready)
+    trap 'on_term' TERM
+    start_binder
+    printf 'READY\n'
+    wait
+    ;;
+  chatty)
+    trap 'on_term' TERM
+    printf 'fake-core: stdout line 1\n'
+    printf 'fake-core: stderr line 1\n' >&2
+    printf 'fake-core: stdout line 2\n'
+    printf 'fake-core: stderr line 2\n' >&2
+    start_binder
+    printf 'READY\n'
+    wait
+    ;;
+  fail | exit-nonzero)
+    printf 'fake-core: simulated fatal storage failure\n' >&2
+    exit 3
+    ;;
+  silent)
+    exec sleep 86400
+    ;;
+  *)
+    printf 'fake-core: unknown mode: %s\n' "$mode" >&2
+    exit 64
+    ;;
+esac
