@@ -37,11 +37,11 @@ dev URL refused when `isPackaged`.
 
 Evidence in `src/main/secret-store.ts` (line numbers current):
 
-| Sub-item | Status | Evidence |
-| --- | --- | --- |
-| S4-1 path try-wrap | **open** | `storePath()` is a bare `app.getPath` (`:96-98`); called OUTSIDE any try in `loadProfile` (`:143`) and in `storedProfileModifiedAt` (`:187`). A throwing `app.getPath` (pre-ready, exotic profile) escapes as a raw exception — FR-48 edge, contradicts "no raw failure reaches the caller". (`saveProfile`'s call at `:125` IS inside the write try.) |
-| S4-2a load size cap | **open** | `loadProfile`: `readFileSync(path)` at `:149-150` with no `statSync` cap — a crafted multi-GB `profile-store.blob` is read whole into the main process (same class as S5-5, which was fixed for the import path only). |
-| S4-2b save size cap | **open** | `saveProfile(profileJson)` (`:109`) has no byte cap; no `MAX_*` constant exists in the file. The ≤1 MiB limit lives only in the import validator — a caller bug can encrypt/write unbounded blobs. |
+| Sub-item            | Status   | Evidence                                                                                                                                                                                                                                                                                                                                               |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| S4-1 path try-wrap  | **open** | `storePath()` is a bare `app.getPath` (`:96-98`); called OUTSIDE any try in `loadProfile` (`:143`) and in `storedProfileModifiedAt` (`:187`). A throwing `app.getPath` (pre-ready, exotic profile) escapes as a raw exception — FR-48 edge, contradicts "no raw failure reaches the caller". (`saveProfile`'s call at `:125` IS inside the write try.) |
+| S4-2a load size cap | **open** | `loadProfile`: `readFileSync(path)` at `:149-150` with no `statSync` cap — a crafted multi-GB `profile-store.blob` is read whole into the main process (same class as S5-5, which was fixed for the import path only).                                                                                                                                 |
+| S4-2b save size cap | **open** | `saveProfile(profileJson)` (`:109`) has no byte cap; no `MAX_*` constant exists in the file. The ≤1 MiB limit lives only in the import validator — a caller bug can encrypt/write unbounded blobs.                                                                                                                                                     |
 
 **Fix scope:** wrap path resolution (all three call sites or inside
 `storePath()` itself) → documented `E-STOR-005` (or `E-STOR-001` for the
@@ -53,11 +53,11 @@ existing 49+ pins.
 
 ## 3. Issue #5 — main-side hardening (M1-10 S4-3/S4-4/S4-6) — **PARTIAL: S4-3 covered, S4-4 blocked on owner, S4-6 open**
 
-| Sub-item | Verdict | Evidence |
-| --- | --- | --- |
-| S4-3 broadcast targeting | **covered → close-worthy (info)** | `broadcastStatus` (`index.ts:70-80`) now: tray mirror first, then per-window `try/catch` send — a destroyed `webContents` throws and is swallowed, renderer re-fetches `status:get` on mount (`:302`). Single-window architecture (no multi-window feature exists; M1-25's "target the loading webContents before any multi-window" precondition never materialized). Log batch flush uses the identical per-window pattern (`:104-114`). Functionally equal to an `isDestroyed()` guard. |
-| S4-4 `proxy:set` payload validation | **blocked on owner Q (DV-30(4))** | Handler still returns the M1-06/07 `E-PLAT-001` placeholder — the real `proxy:set` was deliberately kept out of M1-20/21/23b scope pending the owner's auto-vs-manual system-proxy decision. Validation lands WITH the real handler; cannot be closed or fixed meaningfully before that decision. |
-| S4-6 dialog dedupe / throttling | **open (low-medium)** | M1-25 independently re-confirmed as **S5-11** ("no dialog dedupe/rate limit (S4-6 open)"). `dialog.showOpenDialog` (`index.ts:692`) has no in-flight guard — repeated `profile:import-dialog` invokes can stack native modals. Decrypt/redact-per-call cost is now bounded (batching, caps), so the remaining scope is dialog dedupe (+ optional expensive-handler throttle). |
+| Sub-item                            | Verdict                           | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S4-3 broadcast targeting            | **covered → close-worthy (info)** | `broadcastStatus` (`index.ts:70-80`) now: tray mirror first, then per-window `try/catch` send — a destroyed `webContents` throws and is swallowed, renderer re-fetches `status:get` on mount (`:302`). Single-window architecture (no multi-window feature exists; M1-25's "target the loading webContents before any multi-window" precondition never materialized). Log batch flush uses the identical per-window pattern (`:104-114`). Functionally equal to an `isDestroyed()` guard. |
+| S4-4 `proxy:set` payload validation | **blocked on owner Q (DV-30(4))** | Handler still returns the M1-06/07 `E-PLAT-001` placeholder — the real `proxy:set` was deliberately kept out of M1-20/21/23b scope pending the owner's auto-vs-manual system-proxy decision. Validation lands WITH the real handler; cannot be closed or fixed meaningfully before that decision.                                                                                                                                                                                         |
+| S4-6 dialog dedupe / throttling     | **open (low-medium)**             | M1-25 independently re-confirmed as **S5-11** ("no dialog dedupe/rate limit (S4-6 open)"). `dialog.showOpenDialog` (`index.ts:692`) has no in-flight guard — repeated `profile:import-dialog` invokes can stack native modals. Decrypt/redact-per-call cost is now bounded (batching, caps), so the remaining scope is dialog dedupe (+ optional expensive-handler throttle).                                                                                                             |
 
 **Disposition:** comment on issue #5 recording S4-3 as verified-covered and
 S4-4 as blocked on the owner question; keep the issue open for S4-6 (and S4-4
@@ -104,14 +104,14 @@ ride the existing S5-16 docs-drift item.
 
 ## 5. Summary + gate impact
 
-| Item | Verdict | Action |
-| --- | --- | --- |
-| Issue #3 (nav exact-path) | OPEN, medium | RED → GREEN in M1-26b batch |
-| Issue #4 (store hardening) | OPEN, medium (+deadline miss) | RED → GREEN in M1-26b batch |
-| Issue #5 / S4-3 | covered | close-comment evidence ready (§3) |
-| Issue #5 / S4-4 | blocked on owner (DV-30(4)) | stays open, parked |
-| Issue #5 / S4-6 | open | RED → GREEN in M1-26b batch |
-| D3 (TOCTOU grace) | **signed off** | advisories → S5-16 bundle |
+| Item                       | Verdict                       | Action                            |
+| -------------------------- | ----------------------------- | --------------------------------- |
+| Issue #3 (nav exact-path)  | OPEN, medium                  | RED → GREEN in M1-26b batch       |
+| Issue #4 (store hardening) | OPEN, medium (+deadline miss) | RED → GREEN in M1-26b batch       |
+| Issue #5 / S4-3            | covered                       | close-comment evidence ready (§3) |
+| Issue #5 / S4-4            | blocked on owner (DV-30(4))   | stays open, parked                |
+| Issue #5 / S4-6            | open                          | RED → GREEN in M1-26b batch       |
+| D3 (TOCTOU grace)          | **signed off**                | advisories → S5-16 bundle         |
 
 M1-28 gate: issues #3/#4 still block a clean PASS-without-open-M1-10-findings
 sign-off; the M1-26b RED/GREEN pair above closes them.

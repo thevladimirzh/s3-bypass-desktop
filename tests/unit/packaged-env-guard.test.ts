@@ -11,6 +11,15 @@
  * GREEN: tests/unit/ipc-sender-guard.test.ts (dev-mode allowlist, issue #1),
  * tests/unit/ipc-guard-contract.test.ts (guard placement + packaged document).
  *
+ * M1-26b extension (RED) — issue #3 / M1-10 S3-3, **TC-IPC-14** (§14 DV-34):
+ * the navigation suite above is the natural home for the still-open exact-path
+ * pin — contract B's "the `file://` arm is UNCHANGED" is amended ADDITIVELY:
+ * the blanket `url.startsWith('file://')` must narrow to the EXACT app
+ * document (`PACKAGED_DOCUMENT_URL` below), so an attacker-controlled local
+ * HTML file may no longer navigate the window (security-m1-26b.md §1; no
+ * existing assertion changes — TC-IPC-13's packaged-document arm must stay
+ * GREEN).
+ *
  * Spec sources: docs/qa/security-m1-25.md §2/§3 S5-4 (finding + fix text:
  * "Compute the guard's allowed set from the packaged document alone when
  * app.isPackaged (same condition as index.ts:271); only add DEV_URL when
@@ -361,6 +370,63 @@ describe('packaged build ignores ELECTRON_RENDERER_URL — navigation allowlist 
       violations,
       'S5-4/TC-IPC-13 (issue #10): packaged navigation policy — env URL denied while ' +
         'packaged, packaged document allowed, remote denied (contract B/C):',
+    ).toEqual([]);
+  }, 15_000);
+
+  it('index.navigation.foreignFileUrlRefusedExactAppDocumentAllowed', async () => {
+    // TC-IPC-14 (M1-26b, issue #3 / M1-10 S3-3 — security-m1-26b.md §1).
+    // Discriminating first assertion: a LOCAL attacker-controlled document
+    // (downloaded HTML, temp artifact) must be refused on both navigation
+    // handlers. Today index.ts's predicate is `url.startsWith('file://') || …`,
+    // so any file:// URL is allowed and the 11-member `s3Bypass` bridge stays
+    // attached — exactly issue #3's finding, still open at M1-26b.
+    await flushAsync();
+    expect(
+      probe.windows.length,
+      'precondition: createWindow ran (app.whenReady path — GREEN today, never the RED reason)',
+    ).toBeGreaterThan(0);
+    const window = probe.windows[0] as RecordedWindow;
+
+    const handlerFor = (event: string): ((...args: unknown[]) => void) => {
+      const handler = (window.webContents.handlers.get(event) ?? []).at(-1);
+      if (handler === undefined) {
+        throw new Error(`no webContents.on('${event}') registration captured — TC-IPC-13 pins it`);
+      }
+      return handler;
+    };
+
+    const verdict = (event: string, url: string): string => {
+      const navEvent = { preventDefault: vi.fn() };
+      handlerFor(event)(navEvent, url);
+      return navEvent.preventDefault.mock.calls.length > 0 ? 'denied' : 'allowed';
+    };
+
+    const FOREIGN_FILE_URL = pathToFileURL('/tmp/s3bypass-attacker-controlled.html').toString();
+    const violations: string[] = [];
+    for (const event of ['will-navigate', 'will-redirect'] as const) {
+      const foreignVerdict = verdict(event, FOREIGN_FILE_URL);
+      if (foreignVerdict !== 'denied') {
+        violations.push(
+          `${event}: navigation to a foreign local file was ALLOWED (${FOREIGN_FILE_URL}) — ` +
+            'issue #3 / M1-10 S3-3: isAllowedNavigation must accept ONLY the exact app ' +
+            `document and the (!app.isPackaged) dev URL; a local attacker document would ` +
+            'keep the s3Bypass bridge attached',
+        );
+      }
+
+      const exactVerdict = verdict(event, PACKAGED_DOCUMENT_URL);
+      if (exactVerdict !== 'allowed') {
+        violations.push(
+          `${event}: the EXACT app document must stay allowed (${PACKAGED_DOCUMENT_URL}) — ` +
+            'narrowing the file:// arm (issue #3 fix) may not break the packaged load path',
+        );
+      }
+    }
+
+    expect(
+      violations,
+      'M1-26b/TC-IPC-14 (issue #3): navigation allowlist = exact app document + packaged ' +
+        'scenario policy — foreign file:// denied, exact document allowed:',
     ).toEqual([]);
   }, 15_000);
 });

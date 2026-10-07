@@ -109,6 +109,8 @@ export interface SecretStoreApi {
   saveProfile(profileJson: string): void;
   loadProfile(): string | null;
   deleteStoredProfile(): void;
+  /** M1-26b extension (issue #4 / FR-05): `null` when unknown, never a throw. */
+  storedProfileModifiedAt(): Date | null;
 }
 
 /**
