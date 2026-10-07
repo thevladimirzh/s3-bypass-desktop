@@ -145,9 +145,11 @@ core-crashed` transitions and the last error string.
 
 ## Phase I — Integration, security, acceptance
 
-- [ ] **M1-24** · qa · **M** · deps: M1-13, M1-17, M1-19, M1-21, M1-23b · `todo`
+- [x] **M1-24** · qa · **M** · deps: M1-13, M1-17, M1-19, M1-21, M1-23b · `done`
       Smoke E2E (Playwright, Electron): import fixture profile → Start → status
       `running` → Logs visible → Stop → status `stopped`.
+      _(TC-E2E-01 green ×4 locally; `npm run test:e2e`; CI integration deferred
+      per strategy §2 L3 — proposal in `docs/qa/e2e-ci-proposal.md`.)_
 - [ ] **M1-25** · cybersecurity · **M** · deps: M1-24 · `todo`
       Full MVP security review: S3 key handling, IPC surface, log redaction,
       supply chain (BRIEF §5). Gate for external distribution (M2 exit).
