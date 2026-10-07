@@ -88,6 +88,21 @@
  * guarantee). The ONE spawned process is the local `true` binary used to prove
  * the injected `run` executes an ARGV ARRAY without a shell (PR-08).
  *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * M1-27b ADDENDUM (TC-05-23 · M1-27 blocker B-02 / D-02 / issue #15 · §14
+ * DV-35, owner decisions in docs/qa/acceptance-m1-27.md §8): OUT-OF-SCOPE item
+ * (3) below is CLOSED by this batch — the launch-hidden NATIVE pin joins this
+ * file (the FakeBrowserWindow harness now records constructor options —
+ * additive change): `show:false` in createWindow's options, a real
+ * `shouldShowWindowOnLaunch()` call-site in index.ts, and no launch-time
+ * `show` event while the policy answers `false` (hidden at EVERY launch —
+ * DV-27(3); Q-C stays open but the unconditional BRIEF §2.5/FR-38 wording
+ * governs). Items (1) and (2) are RESOLVED by the owner (Q1 auto-on-start, Q2
+ * SOCKS-only — acceptance §8) and pin with the proxy batch:
+ * tests/unit/proxy-wiring.test.ts (TC-04-16..19, issue #14/#5 S4-4). Nothing
+ * in the contract above is weakened: every M1-23b case stays as written.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
  * RED status: MIXED assertion/absence RED, every case failing because the
  * NATIVE wiring is absent — (A) no window `close` listener is registered;
  * (B) no `app.on('before-quit')` registration exists (helper absence RED);
@@ -119,6 +134,8 @@ interface RecordedAppEvent {
 interface RecordedWindow {
   readonly handlers: Map<string, Array<(...args: unknown[]) => void>>;
   readonly events: string[];
+  /** Constructor options — recorded for TC-05-23 (M1-27b, DV-35). */
+  readonly options: unknown;
 }
 
 /**
@@ -160,8 +177,11 @@ vi.mock('electron', () => {
     readonly handlers = new Map<string, Array<(...args: unknown[]) => void>>();
     readonly events: string[] = [];
     readonly webContents = new FakeWebContents();
+    /** Constructor options, recorded for TC-05-23 (M1-27b, DV-35 — additive). */
+    readonly options: unknown;
 
-    constructor(_options?: unknown) {
+    constructor(options?: unknown) {
+      this.options = options;
       probe.windows.push(this);
     }
 
@@ -650,5 +670,45 @@ describe('system-proxy restore hook + execFile executor seam (FR-35, PR-08)', ()
       'PR-08: never a shell string — index.ts must not use exec( / execSync( / ' +
         'shell:true anywhere (injection guard, M1-20)',
     ).toBe(false);
+  });
+});
+
+describe('launch-hidden native wiring (BRIEF §2.5, FR-38, AC-05.1 — M1-27b TC-05-23)', () => {
+  it('indexNative.launch.hiddenAtLaunchPolicyConsulted', async () => {
+    // TC-05-23 / M1-27 D-02 (blocker B-02, issue #15, DV-35): the launch
+    // window must be CREATED hidden and the launch policy consulted — today
+    // createWindow() carries no show:false and nothing in index.ts calls
+    // shouldShowWindowOnLaunch() (the policy itself is GREEN since M1-22,
+    // TC-05-14), so every launch pops the window instead of starting in the
+    // tray (BRIEF §2.5 "app starts hidden to tray", FR-38, US-05 AC-05.1).
+    await flushAsync();
+
+    const launchWindow = probe.windows.at(-1);
+    expect(
+      launchWindow,
+      'precondition: the app.whenReady path created a window (M1-23b, GREEN today)',
+    ).toBeDefined();
+    const options = launchWindow?.options as { show?: unknown } | undefined;
+    expect(
+      options?.show,
+      'TC-05-23 (issue #15): new BrowserWindow({…}) in createWindow must set show:false — ' +
+        'BRIEF §2.5/FR-38/AC-05.1 (today the options carry no `show` key at all, so Electron ' +
+        'displays the window on every launch — absence RED, strategy §5.1)',
+    ).toBe(false);
+
+    const source = indexSource();
+    expect(
+      /shouldShowWindowOnLaunch\s*\(/.test(source),
+      'TC-05-23: src/main/index.ts must CONSULT the lifecycle launch policy ' +
+        'shouldShowWindowOnLaunch() (window-lifecycle.ts answers it — GREEN TC-05-14 — but ' +
+        'index.ts never calls it: absence RED)',
+    ).toBe(true);
+
+    expect(
+      launchWindow?.events ?? [],
+      'TC-05-23: with the policy answering false (hidden at EVERY launch — DV-27(3), ' +
+        'unconditional BRIEF wording) the launch path must not show() the window — the first ' +
+        'show belongs to tray "Show window" (FR-40/AC-05.3)',
+    ).not.toContain('show');
   });
 });
