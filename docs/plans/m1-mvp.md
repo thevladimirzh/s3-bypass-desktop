@@ -1,6 +1,6 @@
 # M1 — MVP core loop: task breakdown
 
-Milestone: **M1** (BRIEF §2) · Owner: Project Manager · Status: **PHASE A DONE** (M1-01..M1-03 delivered; Phase B opens when M0-20 flips M0)
+Milestone: **M1** (BRIEF §2) · Owner: Project Manager · Status: **in progress** (M1-01..M1-14, M1-18..M1-20 delivered; M1-15 `blocked` — env: local VPN holds `127.0.0.1:10808`, `EADDRINUSE` verified, user must free the port before supervisor GREEN; unpushed local commits held until the full suite is green again)
 Parent plan: `docs/plans/milestones.md`
 
 **Legend:** task ID · owner · size (S ≈ 0.5 d, M ≈ 0.5–1.5 d, L ≈ 2+ d) · deps · status
@@ -63,28 +63,31 @@ dependencies are satisfied before it opens.
 
 ## Phase D — Profile import (BRIEF §2.1)
 
-- [ ] **M1-11** · qa · **M** · deps: M1-02 · `todo`
+- [x] **M1-11** · qa · **M** · deps: M1-02 · `done`
       **RED:** validator tests — valid client-config JSON accepted; malformed JSON,
       wrong schema, missing S3 fields each produce a specific, human-readable
       error message (assert message text; assert **no** stack traces).
-- [ ] **M1-12** · developer · **M** · deps: M1-11, M1-07 · `todo`
+- [x] **M1-12** · developer · **M** · deps: M1-11, M1-07 · `done`
       **GREEN:** file picker (dialog in `main`), validation pipeline, import UI
       with clear error display.
-- [ ] **M1-13** · developer · **S** · deps: M1-12, M1-09 · `todo`
+- [x] **M1-13** · developer · **S** · deps: M1-12, M1-09 · `done`
       Persist imported profile through the secret store; re-import overwrites
       with confirmation.
 
 ## Phase E — Supervisor: start/stop + status (BRIEF §2.2, §2.3)
 
-- [ ] **M1-14** · qa · **M** · deps: M1-02, M1-03 · `todo`
+- [x] **M1-14** · qa · **M** · deps: M1-02, M1-03 · `done`
       **RED:** supervisor integration tests against a **stub core binary**
       (fixture script): spawn → `running`; stop → clean kill + `stopped`;
       nonzero exit → `core-crashed` with last error captured; port arg
       `127.0.0.1:10808` passed. _(Stub needed because binary pinning is M2 — risk R-1.)_
-- [ ] **M1-15** · developer · **L** · deps: M1-14, M1-12 · `todo`
+- [ ] **M1-15** · developer · **L** · deps: M1-14, M1-12 · `blocked`
       **GREEN:** child-process supervisor in `main` (spawn, kill, crash detection,
       exit-code capture, shutdown on app quit); config generated for the core from
       the stored profile; local SOCKS inbound `127.0.0.1:10808`.
+      _Env blocker (DV-24): user VPN `PacketTun` holds `127.0.0.1:10808`
+      (`EADDRINUSE` verified) — every spawn-path test would fail pre-check
+      `E-IO-003`. VPN must NOT be touched; opens when the port is free._
 - [ ] **M1-16** · qa · **S** · deps: M1-14 · `todo`
       **RED:** status exposure tests — renderer receives `running/stopped/
 core-crashed` transitions and the last error string.
@@ -94,24 +97,27 @@ core-crashed` transitions and the last error string.
 
 ## Phase F — Logs view (BRIEF §2.6)
 
-- [ ] **M1-18** · qa · **M** · deps: M1-02 · `todo`
+- [x] **M1-18** · qa · **M** · deps: M1-02 · `done`
       **RED:** tests for bounded in-memory buffer (cap enforced, oldest evicted);
       **redaction** — lines containing S3 keys/credentials/config blobs are
       redacted or dropped; no unbounded growth under 10k lines.
-- [ ] **M1-19** · developer · **M** · deps: M1-18, M1-15 · `todo`
+- [x] **M1-19** · developer · **M** · deps: M1-18, M1-15 · `done`
       **GREEN:** log collector in `main` (core stdout/stderr + app events),
       renderer logs view (scroll, clear, copy), redaction pipeline.
+      _(Supervisor `logSink` → collector wiring lands with M1-15; collector
+      accepts the pinned `{stream, text}` contract as-is.)_
 
 ## Phase G — System-proxy toggle (BRIEF §2.4)
 
-- [ ] **M1-20** · qa · **S** · deps: M1-02 · `todo`
+- [x] **M1-20** · qa · **S** · deps: M1-02 · `done`
       **RED:** unit tests for command construction + platform branching:
       macOS `networksetup` args, Linux GNOME `gsettings` args, unsupported
       desktop → returns the honest "do it manually" hint (assert exact wording
       source), no shell injection from config values.
-- [ ] **M1-21** · developer · **M** · deps: M1-20, M1-15 · `todo`
+- [ ] **M1-21** · developer · **M** · deps: M1-20, M1-15 · `in progress`
       **GREEN:** system-proxy module (exec, no shell interpolation), toggle UI
       with manual-hint fallback; proxy set on start, restored on stop/crash/quit.
+      _(Start/stop integration hooks land with M1-15/M1-17.)_
 
 ## Phase H — Tray & window lifecycle (BRIEF §2.5)
 
