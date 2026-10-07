@@ -81,19 +81,18 @@ dependencies are satisfied before it opens.
       (fixture script): spawn → `running`; stop → clean kill + `stopped`;
       nonzero exit → `core-crashed` with last error captured; port arg
       `127.0.0.1:10808` passed. _(Stub needed because binary pinning is M2 — risk R-1.)_
-- [ ] **M1-15** · developer · **L** · deps: M1-14, M1-12 · `blocked`
+- [x] **M1-15** · developer · **L** · deps: M1-14, M1-12 · `done`
       **GREEN:** child-process supervisor in `main` (spawn, kill, crash detection,
       exit-code capture, shutdown on app quit); config generated for the core from
       the stored profile; local SOCKS inbound `127.0.0.1:10808`.
-      _Env blocker (DV-24): user VPN `PacketTun` holds `127.0.0.1:10808`
-      (`EADDRINUSE` verified) — every spawn-path test would fail pre-check
-      `E-IO-003`. VPN must NOT be touched; opens when the port is free._
-- [ ] **M1-16** · qa · **S** · deps: M1-14 · `todo`
+- [x] **M1-16** · qa · **S** · deps: M1-14 · `done`
       **RED:** status exposure tests — renderer receives `running/stopped/
 core-crashed` transitions and the last error string.
-- [ ] **M1-17** · developer · **M** · deps: M1-15, M1-16, M1-07 · `todo`
+- [x] **M1-17** · developer · **M** · deps: M1-15, M1-16, M1-07 · `done`
       **GREEN:** status wiring end-to-end (supervisor → IPC → UI), Start/Stop
       button behavior incl. disabled/busy states.
+      _(Includes tray mirror `buildTrayMenu`/`setToolTip`; window close-to-tray
+      and quit-teardown wiring deferred → M1-23a/b follow-up rows.)_
 
 ## Phase F — Logs view (BRIEF §2.6)
 
@@ -114,23 +113,37 @@ core-crashed` transitions and the last error string.
       macOS `networksetup` args, Linux GNOME `gsettings` args, unsupported
       desktop → returns the honest "do it manually" hint (assert exact wording
       source), no shell injection from config values.
-- [ ] **M1-21** · developer · **M** · deps: M1-20, M1-15 · `in progress`
+- [x] **M1-21** · developer · **M** · deps: M1-20, M1-15 · `done`
       **GREEN:** system-proxy module (exec, no shell interpolation), toggle UI
       with manual-hint fallback; proxy set on start, restored on stop/crash/quit.
-      _(Start/stop integration hooks land with M1-15/M1-17.)_
+      _(Module only; start/stop integration hooks land in M1-23b.)_
 
 ## Phase H — Tray & window lifecycle (BRIEF §2.5)
 
-- [ ] **M1-22** · qa · **S** · deps: M1-02 · `todo`
+- [x] **M1-22** · qa · **S** · deps: M1-02 · `done`
       **RED:** tests for window lifecycle policy: app starts hidden to tray;
       closing window keeps process alive; explicit Quit exits and stops core.
-- [ ] **M1-23** · developer · **M** · deps: M1-22, M1-07 · `todo`
+- [x] **M1-23** · developer · **M** · deps: M1-22, M1-07 · `done`
       **GREEN:** tray icon + menu (Open / Start / Stop / Quit), close-to-tray
       behavior, quit path stops supervisor and restores system proxy.
+      _(Policy module `window-lifecycle.ts` + tray menu model done; native
+      wiring → M1-23a/b.)_
+- [ ] **M1-23a** · qa · **S** · deps: M1-17, M1-23 · `todo`
+      **RED:** `index.ts` native wiring pins — `app.on('close')` routes through
+      `handleCloseRequest` (hide-to-tray), `before-quit` runs
+      `handleBeforeQuit` teardown (stopCore → restoreProxy → requestQuit),
+      `window-all-closed` keeps the process alive while the tray exists, and
+      the system-proxy restore hook is wired (structural + mocked-electron
+      tests; module-level ACs already covered by M1-22).
+- [ ] **M1-23b** · developer · **S** · deps: M1-23a · `todo`
+      **GREEN:** wire `createWindowLifecycle` + `restoreSystemProxy` +
+      `stopCore→coreWiring.handleStop` into `index.ts` quit/close paths;
+      `setSystemProxy` on Start (behind the existing AC/scope of US-04 as
+      pinned by M1-23a).
 
 ## Phase I — Integration, security, acceptance
 
-- [ ] **M1-24** · qa · **M** · deps: M1-13, M1-17, M1-19, M1-21, M1-23 · `todo`
+- [ ] **M1-24** · qa · **M** · deps: M1-13, M1-17, M1-19, M1-21, M1-23b · `todo`
       Smoke E2E (Playwright, Electron): import fixture profile → Start → status
       `running` → Logs visible → Stop → status `stopped`.
 - [ ] **M1-25** · cybersecurity · **M** · deps: M1-24 · `todo`
@@ -161,7 +174,8 @@ graph LR
   M1-02 --> M1-18 --> M1-19
   M1-02 --> M1-20 --> M1-21
   M1-02 --> M1-22 --> M1-23
-  M1-13 & M1-17 & M1-19 & M1-21 & M1-23 --> M1-24 --> M1-25 --> M1-26 --> M1-27 --> M1-28
+  M1-17 & M1-23 --> M1-23a --> M1-23b
+  M1-13 & M1-17 & M1-19 & M1-21 & M1-23b --> M1-24 --> M1-25 --> M1-26 --> M1-27 --> M1-28
 ```
 
 ## Handoffs (explicit, in order)
