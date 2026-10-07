@@ -79,6 +79,68 @@ body {
   margin: 0.25rem 0;
 }
 
+.logs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.logs h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.log-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.log-actions button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #2a3541;
+  border-radius: 6px;
+  background: #1f2a35;
+  color: #e7edf3;
+  font: inherit;
+  cursor: pointer;
+}
+
+.log-list {
+  max-height: 16rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.log-row {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid #1c242c;
+}
+
+.log-ts {
+  color: #6b7a8a;
+}
+
+.log-level {
+  min-width: 3.5rem;
+  color: #9fb0c0;
+}
+
+.log-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-empty {
+  margin: 0;
+  color: #9fb0c0;
+}
+
 footer {
   margin-top: 3rem;
   font-size: 0.85rem;

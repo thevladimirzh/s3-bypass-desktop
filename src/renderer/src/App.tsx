@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { AppError, PingResult, ProfileSummary } from '../../shared/ipc';
+import LogsView from './components/LogsView';
 
 export default function App() {
   const [ping, setPing] = useState<PingResult | null>(null);
@@ -107,6 +108,8 @@ export default function App() {
           </div>
         )}
       </section>
+      {/* M1-19 (FR-45/FR-49): the logs view — main-redacted lines, copy/clear. */}
+      <LogsView />
       <footer>M0 scaffold — tunnel features land in M1.</footer>
     </main>
   );

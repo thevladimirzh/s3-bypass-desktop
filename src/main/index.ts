@@ -28,6 +28,7 @@ import type {
 } from '../shared/ipc';
 import type { AppError } from '../shared/status-machine';
 import { assertTrustedSender } from './ipc-guard';
+import { createLogCollector } from './log-collector';
 import { validateClientConfig } from './profile-validator';
 import {
   deleteStoredProfile,
@@ -38,6 +39,9 @@ import {
 
 /** `status:changed` push channel (§4.2, FR-63) — a contract literal, never a free string. */
 const STATUS_CHANGED = 'status:changed' satisfies IpcPushChannel;
+
+/** `log:line` push channel (§4.2, FR-63) — same rule: a contract literal, never a free string. */
+const LOG_LINE = 'log:line' satisfies IpcPushChannel;
 
 /**
  * The status main currently owns (FR-25/FR-26): status machine snapshot plus
@@ -61,6 +65,29 @@ function broadcastStatus(snapshot: StatusSnapshot = currentStatus): void {
     win.webContents.send(STATUS_CHANGED, snapshot);
   }
 }
+
+/**
+ * The bounded log buffer (FR-45/FR-46, M1-19): the single redaction entry
+ * point (FR-47) every core/app line passes through — the renderer only ever
+ * receives what this collector returns (data-flows (b) step 6).
+ */
+const logCollector = createLogCollector();
+
+/**
+ * FR-63 (data-flows (d) H4): each stored (post-redaction) line is pushed to
+ * every window as it arrives — the renderer never polls the buffer. Mirrors
+ * `broadcastStatus`; the send is best-effort so a window closing mid-push
+ * cannot break the collector's notification path.
+ */
+logCollector.subscribe((line) => {
+  for (const win of BrowserWindow.getAllWindows()) {
+    try {
+      win.webContents.send(LOG_LINE, line);
+    } catch {
+      // The window is gone — the line stays in the buffer for the next one.
+    }
+  }
+});
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -441,16 +468,18 @@ ipcMain.handle('status:get', (event: IpcMainInvokeEvent): StatusSnapshot => {
   return currentStatus;
 });
 
-// Placeholder until M1-19 (log collector): the buffer does not exist yet —
-// an empty, trivially redacted result beats a fabricated line (FR-45).
+// M1-19 (FR-45): `logs:get` answers with the collector's buffer — redacted
+// lines, oldest-first, at most the FR-46 cap (§4.2) — never a literal.
 ipcMain.handle('logs:get', (event: IpcMainInvokeEvent): LogsView => {
   assertTrustedSender(event);
-  return { lines: [] };
+  return logCollector.get();
 });
 
-// Placeholder until M1-19: clearing an empty buffer succeeds (FR-46).
+// M1-19 (FR-46, AC-06.6 data half): clearing empties the collector buffer;
+// the cap still applies to the lines pushed afterwards.
 ipcMain.handle('logs:clear', (event: IpcMainInvokeEvent): { ok: true } => {
   assertTrustedSender(event);
+  logCollector.clear();
   return { ok: true };
 });
 
