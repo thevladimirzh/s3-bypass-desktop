@@ -7,9 +7,12 @@ import {
   dialog,
   ipcMain,
   type IpcMainInvokeEvent,
+  Menu,
+  nativeImage,
   type OpenDialogReturnValue,
   session,
   shell,
+  Tray,
 } from 'electron';
 
 import { APP_NAME, DEFAULT_SOCKS_PORT, IPC_PING } from '../shared/constants';
@@ -26,7 +29,9 @@ import type {
   ProxyToggleRequest,
   StatusSnapshot,
 } from '../shared/ipc';
-import type { AppError } from '../shared/status-machine';
+import { type AppError, type CoreState } from '../shared/status-machine';
+import { createSupervisor } from './core-supervisor';
+import { createCoreWiring } from './core-wiring';
 import { assertTrustedSender } from './ipc-guard';
 import { createLogCollector } from './log-collector';
 import { validateClientConfig } from './profile-validator';
@@ -36,6 +41,7 @@ import {
   saveProfile,
   storedProfileModifiedAt,
 } from './secret-store';
+import { buildTrayMenu, type TrayMenuAction } from './window-lifecycle';
 
 /** `status:changed` push channel (§4.2, FR-63) — a contract literal, never a free string. */
 const STATUS_CHANGED = 'status:changed' satisfies IpcPushChannel;
@@ -44,25 +50,24 @@ const STATUS_CHANGED = 'status:changed' satisfies IpcPushChannel;
 const LOG_LINE = 'log:line' satisfies IpcPushChannel;
 
 /**
- * The status main currently owns (FR-25/FR-26): status machine snapshot plus
- * the fixed local SOCKS port. The supervisor (M1-15) and its IPC wiring
- * (M1-17) will reassign this on every transition; until then nothing changes
- * it (hence `const`).
- */
-const currentStatus: StatusSnapshot = {
-  state: 'stopped',
-  lastError: null,
-  socksPort: DEFAULT_SOCKS_PORT,
-};
-
-/**
  * FR-63 (data-flows §4.2): pushes a status snapshot main → renderer with
  * `webContents.send` — the renderer never polls for state that main owns.
- * Called once the page is ready and on every future transition (M1-17).
+ * Called once the page is ready and on every future transition: every push
+ * comes from the M1-17 wiring's injected `broadcast`, so a transition is
+ * fanned out exactly once (FR-26, no double-send). The send is best-effort
+ * so a window closing mid-push cannot break the notification path (same
+ * rule as the `log:line` push below); the tray mirror runs first so a
+ * closed window still leaves the state visible (AC-05.4, FR-43).
  */
-function broadcastStatus(snapshot: StatusSnapshot = currentStatus): void {
+function broadcastStatus(snapshot: StatusSnapshot): void {
+  syncTray(snapshot.state);
   for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send(STATUS_CHANGED, snapshot);
+    try {
+      win.webContents.send(STATUS_CHANGED, snapshot);
+    } catch {
+      // The window is gone — the snapshot already reached the tray, and the
+      // renderer re-fetches `status:get` on its next mount (data-flows §5).
+    }
   }
 }
 
@@ -88,6 +93,105 @@ logCollector.subscribe((line) => {
     }
   }
 });
+
+// ————————————————————————————————————————————————————————————————
+// Tray mirror (FR-24/FR-41, AC-05.4 — M1-17 wiring half): the state reaches
+// the tray as TEXT (menu model + tooltip), never color-only (NFR-5/FR-41).
+// Tray/window actions are main-internal, never IPC (data-flows §4.2 "Not
+// IPC"); the full close-to-tray / quit-teardown wiring lands with M1-23.
+// ————————————————————————————————————————————————————————————————
+
+/**
+ * 16×16 PNG icon embedded as a data URL — no icon asset ships with the repo
+ * yet (packaging supplies the real icon later); an embedded image keeps the
+ * tray working on macOS and Linux alike with no filesystem dependency.
+ */
+const TRAY_ICON_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAPElEQVR42mNgoDbQMnX8jw8TpTl69n+sGK8h+DRiM4gkmwm6hBTNWF0xagCVDKAoGilOSFRJylTJTOQAAExzvBA3oawXAAAAAElFTkSuQmCC';
+
+/** The tray instance, created once the app is ready (`app.whenReady`). */
+let tray: Tray | null = null;
+
+/**
+ * FR-24/FR-41 + AC-05.4: rebuild the tray from the state alone — the menu
+ * template comes from the pinned `buildTrayMenu(state)` model (all four
+ * items always listed, `enabled` following the data-flows §2.3 guards) and
+ * the tooltip carries the model's `statusText`, so the state is readable as
+ * TEXT in both places (never icon/color only, NFR-5).
+ *
+ * @param state current core lifecycle state (every `status:changed` push
+ *   fans out here before it reaches the windows)
+ */
+function syncTray(state: CoreState): void {
+  const current = tray;
+  if (current === null) {
+    return;
+  }
+  const model = buildTrayMenu(state);
+  current.setToolTip(model.statusText);
+  current.setContextMenu(
+    Menu.buildFromTemplate(
+      model.items.map((item) => ({
+        label: item.label,
+        enabled: item.enabled,
+        click: (): void => {
+          void dispatchTrayAction(item.id);
+        },
+      })),
+    ),
+  );
+}
+
+/**
+ * Tray menu dispatch (data-flows §4.2 "Not IPC"): `start`/`stop` reuse the
+ * very same wiring the `core:*` handlers delegate to, `open` shows the main
+ * window (FR-40), and `quit` follows the data-flows §5 partial order — stop
+ * the core first, then request the exit (the system-proxy revert step lands
+ * with M1-21).
+ */
+async function dispatchTrayAction(action: TrayMenuAction): Promise<void> {
+  switch (action) {
+    case 'open': {
+      const [win] = BrowserWindow.getAllWindows();
+      if (win !== undefined) {
+        if (win.isMinimized()) {
+          win.restore();
+        }
+        win.show();
+        win.focus();
+      }
+      return;
+    }
+    case 'start':
+      await coreWiring.handleStart();
+      return;
+    case 'stop':
+      await coreWiring.handleStop();
+      return;
+    case 'quit':
+      try {
+        await coreWiring.handleStop();
+      } finally {
+        app.quit();
+      }
+      return;
+  }
+}
+
+/**
+ * Creates the tray icon once the app is ready; `syncTray` fills menu + tooltip.
+ * The tray is a best-effort affordance: a headless session may expose no
+ * system tray at all, and a missing one must never break startup — with
+ * `tray === null` the mirror simply stays off and the renderer status view
+ * remains the source of truth.
+ */
+function createTray(): void {
+  try {
+    tray = new Tray(nativeImage.createFromDataURL(TRAY_ICON_DATA_URL));
+  } catch {
+    tray = null;
+  }
+}
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -123,10 +227,10 @@ function createWindow(): BrowserWindow {
   });
 
   // FR-63: hand the renderer main's current status by push as soon as the
-  // page is ready (the renderer may additionally call `status:get` once at
+  // page is ready (the renderer additionally calls `status:get` once at
   // startup per data-flows §5).
   win.webContents.on('did-finish-load', () => {
-    broadcastStatus();
+    broadcastStatus(coreWiring.getStatus());
   });
 
   // M0-19 / S4-3: never load a dev URL in a packaged app even if the env
@@ -287,6 +391,62 @@ function parseStoredProfile(raw: string): Record<string, unknown> | null {
 }
 
 // ————————————————————————————————————————————————————————————————
+// M1-17 (data-flows (b)): supervisor → IPC status wiring — the HOST resolves
+// every collaborator here, the glue itself stays pure node (DV-28).
+// ————————————————————————————————————————————————————————————————
+
+/**
+ * S4-5 (docs/qa/security-m1-10.md): the `CORE_BINARY_PATH` dev override is
+ * honored ONLY while `!app.isPackaged` — inside a package the bundled engine
+ * path wins so the environment can never substitute the executable (M2 pins
+ * the packaged name; until then the path simply does not exist and the
+ * supervisor answers the documented E-IO-004 without spawning, risk R-1).
+ */
+function resolveCoreBinaryPath(): string {
+  const override = process.env.CORE_BINARY_PATH;
+  if (!app.isPackaged && override !== undefined && override.trim() !== '') {
+    return override;
+  }
+  // `process.resourcesPath` exists only inside a real Electron process; the
+  // unit-test harness loads this module under plain node where it is absent.
+  // Falling back to the bare name keeps construction total — no such file
+  // resolves from the test cwd, so the supervisor answers the documented
+  // E-IO-004 without spawning (risk R-1), exactly like a missing bundle.
+  const resources = process.resourcesPath;
+  const dir = typeof resources === 'string' && resources !== '' ? resources : '.';
+  return join(dir, 'fedarisha-xray-core');
+}
+
+/**
+ * The M1-17 status wiring (FR-13/FR-25/FR-26/FR-63): `core:start`,
+ * `core:stop` and `status:get` delegate to it, and every supervisor
+ * transition reaches `broadcastStatus` (→ tray text mirror + the single
+ * `status:changed` push) through the injected `broadcast` — exactly one
+ * fan-out per transition, never a second `getStatus()` poll.
+ */
+const coreWiring = createCoreWiring({
+  createSupervisor,
+  binaryPath: resolveCoreBinaryPath(),
+  loadConfig: (): string | null => {
+    // Same degradation rule `profile:get` applies: an unreadable store
+    // answers "no profile" (data-flows §5) — the step-0 guard refuses Start.
+    try {
+      return loadProfile();
+    } catch {
+      return null;
+    }
+  },
+  logSink: (line): void => {
+    // M1-19 (FR-47): the collector is main's single redaction entry point —
+    // raw child lines reach it here, never a window (data-flows (b) step 6).
+    logCollector.push(line);
+  },
+  broadcast: (snapshot): void => {
+    broadcastStatus(snapshot);
+  },
+});
+
+// ————————————————————————————————————————————————————————————————
 // §4.2 invoke handlers: one `ipcMain.handle` per R→M channel (FR-61/FR-62).
 // Feature logic lands with later M1 tasks; until then each handler returns
 // the documented §4.2 payload shape — placeholder results where the feature
@@ -439,33 +599,27 @@ ipcMain.handle('profile:remove', (event: IpcMainInvokeEvent): ProfileRemovalResu
   }
 });
 
-// Placeholder until the supervisor lands (M1-15): nothing can be spawned
-// yet, so Start reports the documented "engine not found" triple (errors.md
-// §2; risk R-1 — the pinned binary arrives with M2). No status transition
-// happens here; M1-17 owns transitions and their `status:changed` pushes.
-ipcMain.handle('core:start', (event: IpcMainInvokeEvent): OperationResult => {
+// M1-17 (FR-13, data-flows (b) step 0): Start delegates to the status
+// wiring — the no-profile guard refuses BEFORE any supervisor exists, and a
+// start failure comes back verbatim from the M1-15 pre-checks (the M1-07
+// inline E-IO-004 placeholder is gone).
+ipcMain.handle('core:start', (event: IpcMainInvokeEvent): Promise<OperationResult> => {
   assertTrustedSender(event);
-  return {
-    ok: false,
-    error: {
-      code: 'E-IO-004',
-      title: 'Core binary check failed',
-      cause: 'The tunnel engine (Xray-core) was not found in the app installation.',
-      nextStep: 'Reinstall the app.',
-    },
-  };
+  return coreWiring.handleStart();
 });
 
-// Placeholder until M1-15: there is no supervisor, hence nothing running —
-// stopping is already satisfied (idempotent no-op success).
-ipcMain.handle('core:stop', (event: IpcMainInvokeEvent): OperationResult => {
+// M1-17 (§4.2): Stop delegates to the wiring — without a constructed
+// supervisor this is the documented idempotent `{ok:true}` no-op.
+ipcMain.handle('core:stop', (event: IpcMainInvokeEvent): Promise<OperationResult> => {
   assertTrustedSender(event);
-  return { ok: true };
+  return coreWiring.handleStop();
 });
 
+// M1-17 (FR-25): status:get answers the wiring's LIVE snapshot — the latest
+// pushed transition, not a frozen placeholder (data-flows §4.2).
 ipcMain.handle('status:get', (event: IpcMainInvokeEvent): StatusSnapshot => {
   assertTrustedSender(event);
-  return currentStatus;
+  return coreWiring.getStatus();
 });
 
 // M1-19 (FR-45): `logs:get` answers with the collector's buffer — redacted
@@ -523,6 +677,12 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => {
     callback(false);
   });
+
+  // M1-17 (FR-24/FR-41, AC-05.4): the tray exists from launch and mirrors
+  // the CURRENT state as text (menu model + tooltip) — every later
+  // transition re-syncs it through broadcastStatus above.
+  createTray();
+  syncTray(coreWiring.getStatus().state);
 
   createWindow();
   app.on('activate', () => {

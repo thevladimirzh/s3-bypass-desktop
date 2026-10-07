@@ -632,7 +632,7 @@ describe('proxy toggle guard — disabled with the FR-30 hint while not running'
       expect(
         isEnabled(toggle),
         'FR-30/AC-04.4: the toggle is disabled whenever status ≠ running',
-      ).toBe(true);
+      ).toBe(false);
     }
 
     await requireSubscription(rig);
