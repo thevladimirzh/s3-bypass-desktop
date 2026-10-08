@@ -35,8 +35,10 @@
  *      `starting → stopped` edge — a write failure must settle with
  *      E-IO-006 while the observable state stays `stopped` (errors.md §2).
  *   5. `stopped → starting` emitted; spawn `binaryPath` with the documented
- *      argv `[run, -c, T]` (PR-08: args array, no shell; no `env` option so
- *      the child inherits `process.env` — the FAKE_CORE_* fixture contract).
+ *      argv `[run, -c, T]` (PR-08: args array, no shell) and an EXPLICIT
+ *      `env` from `buildChildEnv` (issue #21: allowlisted host keys +
+ *      FAKE_CORE_* only when un-packaged — the child never inherits the
+ *      parent environment).
  *   6. readiness = TCP connect 127.0.0.1:10808 within 10 s of spawn (FR-20,
  *      FR-21, A-11/A-12): ok → `starting → running`, lastError cleared;
  *      timeout → SIGTERM (2 s → SIGKILL), reap, `starting → crashed` with
@@ -72,6 +74,7 @@ import {
   type StatusSnapshot,
   transition,
 } from '../shared/status-machine';
+import { buildChildEnv } from './child-env';
 import { redactLine } from './log-collector';
 import { validateClientConfig } from './profile-validator';
 
@@ -85,6 +88,13 @@ export interface CoreLogLine {
 export interface SupervisorOptions {
   /** Path to the core executable; pre-checked for existence (FR-14). */
   readonly binaryPath: string;
+  /**
+   * Host app's packaged flag (issue #21): the child env admits the
+   * dev/test `FAKE_CORE_*` seam only when the app is NOT packaged.
+   * Optional — every unit rig omits it (dev arm), the host passes
+   * `app.isPackaged` through the wiring.
+   */
+  readonly isPackaged?: boolean | undefined;
   /** Stored-profile JSON — the input of T's materialization (flow (b) step 3). */
   readonly config: string;
   /** Called on every status-machine transition with the post-transition snapshot; no initial emission. */
@@ -604,11 +614,14 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
     // re-materialization — bounded by BIND_RETRY_BUDGET.
     for (;;) {
       // Step 6: spawn with the EXACT documented argv — an args array, no shell
-      // (PR-08); no `env` option means the child inherits `process.env`.
+      // (PR-08); the env is EXPLICIT (issue #21): buildChildEnv allowlists
+      // PATH/HOME/TMPDIR/LANG (+ USER/LOGNAME) and passes FAKE_CORE_* only
+      // un-packaged — secrets, CORE_BINARY_PATH and ELECTRON_* never ride.
       let spawned: ChildProcess | null = null;
       try {
         spawned = spawn(options.binaryPath, ['run', '-c', materialized.path], {
           stdio: ['ignore', 'pipe', 'pipe'],
+          env: buildChildEnv(process.env, { isPackaged: options.isPackaged }),
         });
       } catch (failure) {
         cleanupMaterialized();

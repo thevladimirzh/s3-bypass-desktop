@@ -80,6 +80,13 @@ export interface CoreWiringDeps {
   readonly logSink: (line: CoreLogLine) => void;
   /** Main's `webContents.send('status:changed', …)` fan-out (FR-63). */
   readonly broadcast: (snapshot: StatusSnapshot) => void;
+  /**
+   * Host app's packaged flag, forwarded to the supervisor (issue #21) —
+   * the child env admits the `FAKE_CORE_*` dev/test seam only un-packaged.
+   * Optional so every existing deps literal (unit fakes) stays untouched;
+   * the host supplies `app.isPackaged`.
+   */
+  readonly isPackaged?: boolean | undefined;
 }
 
 /** Behavior surface of `createCoreWiring(deps)` — what `src/main/index.ts` wires. */
@@ -174,6 +181,7 @@ export function createCoreWiring(deps: CoreWiringDeps): CoreWiring {
         : deps.createSupervisor({
             binaryPath: deps.binaryPath,
             config,
+            isPackaged: deps.isPackaged,
             onStateChange: pushTransition,
             logSink: deps.logSink,
           });

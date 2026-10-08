@@ -515,6 +515,7 @@ function parseStoredProfile(raw: string): Record<string, unknown> | null {
  */
 const coreWiring = createCoreWiring({
   createSupervisor,
+  isPackaged: app.isPackaged,
   binaryPath: resolveCoreBinaryPath({
     isPackaged: app.isPackaged,
     override: process.env.CORE_BINARY_PATH,
