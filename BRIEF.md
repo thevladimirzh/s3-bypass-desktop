@@ -84,9 +84,12 @@ S3-provider presets · deep OS integration.
 - Core binary pinned to the latest `Fedarisha/Xray-core-fedarisha` release;
   commit SHA recorded in docs.
 - Linux targets: `x64` first; `arm64` follows in CI matrix.
+- Linux package formats: **AppImage + `.deb` + `.rpm`** (owner decision 2026-10-08).
 
 ## 10. Open questions
 
-- macOS signing/notarization: needs an Apple Developer account (owner call).
+- macOS signing/notarization: **resolved 2026-10-08** — no Apple Developer account
+  (cost, owner call); ship an unsigned build + Gatekeeper instructions, notarization
+  stays out of scope.
 - Exact default SOCKS port: 10808 for now (configurable later).
 - Which S3 providers deserve presets first (owner call, post-MVP).

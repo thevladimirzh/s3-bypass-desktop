@@ -12,7 +12,7 @@ Source of truth: `BRIEF.md` §8. Owner: Project Manager. All artifacts in Englis
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **M0 — Repo scaffold**           | **DONE** (2026-10-07) — scaffold + docs committed; CI green on ubuntu+macos (run `37534079151` and later); M0-19 security spot-check PASS (no S1/S2). Evidence: `docs/qa/m0-verification.md`, `docs/qa/security-m0-19.md`.                                         |
 | **M1 — MVP core loop**           | **DONE** (2026-10-08) — Phases A–I delivered; M1-27 acceptance NO-GO → **M1-27b** remediation closed (issues #14..#18 with evidence; #19 carries the out-of-M1 crash branch); M1-28 flip done, **handoff → devops (M2)**. Evidence: `docs/qa/acceptance-m1-27.md`. |
-| **M2 — Packaging & pinned core** | NOT STARTED — **unblocked 2026-10-08** (M1 handed to devops; the Q9 waiver moves the desktop manual checks to the M2 fresh-machine DoD, acceptance §8).                                                                                                            |
+| **M2 — Packaging & pinned core** | **IN PROGRESS** — board `docs/plans/m2-packaging.md` opened 2026-10-08 (owner decisions recorded first: unsigned macOS, AppImage + `.deb` + `.rpm`). Unblocked by the M1 handoff; the Q9-waived desktop checks join the fresh-machine DoD.                         |
 | **M3 — Polish + beta**           | NOT STARTED — blocked on M2.                                                                                                                                                                                                                                       |
 
 Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative checklist; a milestone flips to `done` only when its Definition of Done below is fully met — stale `done` is a bug. M0 flipped 2026-10-07: DoD 1–6 evidenced in `docs/qa/m0-verification.md` and `docs/qa/security-m0-19.md`. M1 flipped 2026-10-08: DoD 2 (strict TDD, 215 RED/GREEN-pinned tests), DoD 3 (security gate MET, no high/critical open) and DoD 4 (CI green both OS + smoke E2E ×3 green) evidenced in `docs/qa/acceptance-m1-27.md` + issue closures #14..#18; DoD 1's desktop manual demonstration is covered for the flip by the written Q9 waiver (basis = CI both-OS + suite + E2E M1-24) with the manual rows moving to the M2 fresh-machine DoD.
@@ -86,14 +86,16 @@ Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative chec
 ### Concrete deliverables
 
 - Core binary **version- and SHA-256-pinned**, cross-built for `darwin-x64`, `darwin-arm64`, `linux-x64`; pin (release + commit SHA) recorded in docs (BRIEF §9).
-- `electron-builder` config → `.dmg` (macOS), AppImage + `.deb` (Linux).
+- `electron-builder` config → unsigned `.dmg` (macOS), AppImage + `.deb` + `.rpm` (Linux) —
+  formats per owner decision 2026-10-08 (BRIEF §9/§10).
 - Release CI: build artifacts **on tags**; lint/test still on every push.
 - GPL-3.0 compliance for the bundled Go core (license texts shipped/attributed).
-- macOS: unsigned build + Gatekeeper instructions (notarization is backlog, owner call).
+- macOS: unsigned build + Gatekeeper instructions (notarization resolved out of scope —
+  owner: no Apple account, 2026-10-08).
 
 ### Definition of Done
 
-1. Tag produces installable artifacts for all three targets; SHA-256 of bundled core verified at build time.
+1. Tag produces installable artifacts for all three build targets (darwin-x64, darwin-arm64, linux-x64 — Linux ships AppImage + `.deb` + `.rpm`); SHA-256 of bundled core verified at build time.
 2. Fresh-machine install runs the MVP loop (import → start → stop) from the packaged app.
 3. Security review before any external distribution (BRIEF §5): supply chain, S3 key handling, IPC — findings triaged.
 4. GPL notice + third-party attributions present in artifacts.
@@ -101,7 +103,7 @@ Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative chec
 
 ### Estimate
 
-1–2 weeks (assumes: no Apple Developer account yet — see blockers; CI cross-build capacity available).
+1–2 weeks (assumes: unsigned macOS path per the owner decision of 2026-10-08; CI cross-build capacity available).
 
 ---
 
@@ -175,9 +177,9 @@ Cross-milestone hard dependencies:
 
 ## Risks & blockers (watch list)
 
-| ID  | Item                                                         | Impact                                                   | Owner                              | State                                                      |
-| --- | ------------------------------------------------------------ | -------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------- |
-| R-1 | No core binary available to M1 supervisor until pinning (M2) | Start/Stop tests need a stub or dev-provided binary      | project-manager / devops           | open — plan: stub in M1                                    |
-| R-2 | Apple Developer account (notarization) undecided             | M2 macOS distribution limited to unsigned + instructions | owner (user)                       | open, owner call                                           |
-| R-3 | `docs/product/` and `docs/analysis/` do not exist yet        | M1 QA cannot derive tests without specs                  | product-manager / business-analyst | open — first M1 tasks                                      |
-| R-4 | Repo has no code yet; CI config unverified                   | M0 estimates may shift once toolchain chosen             | project-manager                    | closed — CI verified green (37534079151, both matrix legs) |
+| ID  | Item                                                         | Impact                                                   | Owner                              | State                                                                                                                                                                       |
+| --- | ------------------------------------------------------------ | -------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R-1 | No core binary available to M1 supervisor until pinning (M2) | Start/Stop tests need a stub or dev-provided binary      | project-manager / devops           | active 2026-10-08 — upstream checked: release `v26.9.9-1.0.1fed` (2026-09-26) ships `macos-64`/`macos-arm64-v8a`/`linux-64` assets + `.dgst`; board `m2-packaging.md` M2-03 |
+| R-2 | Apple Developer account (notarization) undecided             | M2 macOS distribution limited to unsigned + instructions | owner (user)                       | closed 2026-10-08 — owner: no Apple account (cost); unsigned `.dmg` + Gatekeeper instructions is the decided path (BRIEF §10)                                               |
+| R-3 | `docs/product/` and `docs/analysis/` do not exist yet        | M1 QA cannot derive tests without specs                  | product-manager / business-analyst | open — first M1 tasks                                                                                                                                                       |
+| R-4 | Repo has no code yet; CI config unverified                   | M0 estimates may shift once toolchain chosen             | project-manager                    | closed — CI verified green (37534079151, both matrix legs)                                                                                                                  |
