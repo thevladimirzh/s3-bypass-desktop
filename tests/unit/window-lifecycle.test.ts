@@ -452,37 +452,40 @@ describe('tray state while the window is closed (US-05 AC-05.6, FR-43) — TC-05
   });
 });
 
-describe('launch hidden to tray (BRIEF §2.5, FR-38, US-05 edge) — TC-05-14', () => {
-  it('tray.launch.startsHiddenToTrayEveryLaunch', async () => {
-    // BRIEF §2.5 / PRD row 5 / FR-38 (unconditional wording — the Q-C
-    // every-launch-vs-first-run question stays open; see §14 DV-27): a fresh
-    // launch must NOT show the window — it starts hidden to tray.
+describe('launch shows the main window (owner decision, issue #25; FR-38 amended) — TC-05-14', () => {
+  it('tray.launch.showsMainWindowOnEveryLaunch', async () => {
+    // Owner decision 2026-10-08 (issue #25) amends BRIEF §2.5 / FR-38 /
+    // PRD row 5: a fresh launch SHOWS the main window — the hidden-to-tray
+    // wording is retired and Q-C's hidden half is resolved (§14 DV-58).
     const first = await loadLifecycle();
     expect(
       first.lifecycle.shouldShowWindowOnLaunch(),
-      'FR-38: the app starts hidden to tray — the first window show is deferred',
-    ).toBe(false);
+      'FR-38 (amended, issue #25): the launch policy answers SHOW — index.ts ' +
+        'performs the launch-time show() (pinned natively by TC-05-23)',
+    ).toBe(true);
     expect(
       first.recorder.calls,
-      'launch runs no show/stop/quit callback by itself — the window stays hidden',
+      'the policy module records no lifecycle side effect itself — the launch show ' +
+        'belongs to the index.ts wiring',
     ).toEqual([]);
 
     // "Every launch" half: a second independent launch instance reports the
     // same policy (nothing stateful leaks between launches).
     const second = await loadLifecycle();
-    expect(second.lifecycle.shouldShowWindowOnLaunch(), 'policy holds for a relaunch').toBe(false);
+    expect(second.lifecycle.shouldShowWindowOnLaunch(), 'policy holds for a relaunch').toBe(true);
   });
 
-  it('tray.launch.firstWindowShowDeferredUntilTrayOpen', async () => {
-    // FR-38 + FR-40: nothing shows the window at startup; the first show
-    // happens when the user picks tray "Open".
+  it('tray.openShowsTheWindowOnDemand', async () => {
+    // FR-40 (unchanged by issue #25): tray "Open" routes the show through the
+    // lifecycle — after the launch already showed the window it re-shows /
+    // focuses it; the module itself performs no show without the menu action.
     const { lifecycle, recorder } = await loadLifecycle();
 
     await flushTasks();
-    expect(recorder.calls, 'no window show before any tray interaction').toEqual([]);
+    expect(recorder.calls, 'no lifecycle show without a tray interaction').toEqual([]);
 
     await lifecycle.handleMenuAction('open');
-    expect(recorder.calls, 'tray "Open" performs the deferred first show (FR-40)').toEqual([
+    expect(recorder.calls, 'tray "Open" shows/focuses the window (FR-40/AC-05.3)').toEqual([
       'showWindow',
     ]);
   });

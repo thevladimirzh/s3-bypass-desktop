@@ -673,14 +673,14 @@ describe('system-proxy restore hook + execFile executor seam (FR-35, PR-08)', ()
   });
 });
 
-describe('launch-hidden native wiring (BRIEF §2.5, FR-38, AC-05.1 — M1-27b TC-05-23)', () => {
-  it('indexNative.launch.hiddenAtLaunchPolicyConsulted', async () => {
-    // TC-05-23 / M1-27 D-02 (blocker B-02, issue #15, DV-35): the launch
-    // window must be CREATED hidden and the launch policy consulted — today
-    // createWindow() carries no show:false and nothing in index.ts calls
-    // shouldShowWindowOnLaunch() (the policy itself is GREEN since M1-22,
-    // TC-05-14), so every launch pops the window instead of starting in the
-    // tray (BRIEF §2.5 "app starts hidden to tray", FR-38, US-05 AC-05.1).
+describe('launch-shows-window native wiring (FR-38 amended, issue #25, AC-05.1 — TC-05-23)', () => {
+  it('indexNative.launch.policyConsultedAndWindowShown', async () => {
+    // TC-05-23 (originally M1-27b / issue #15, now AMENDED by owner decision
+    // issue #25): the launch window is still CREATED hidden (the constructor
+    // never carries Electron's show-default) and the launch policy is
+    // CONSULTED — but with the policy answering true (FR-38 amended: the
+    // window shows on launch) the launch path must then show() it, instead of
+    // deferring the first show to tray "Show window" (FR-40/AC-05.3).
     await flushAsync();
 
     const launchWindow = probe.windows.at(-1);
@@ -706,9 +706,9 @@ describe('launch-hidden native wiring (BRIEF §2.5, FR-38, AC-05.1 — M1-27b TC
 
     expect(
       launchWindow?.events ?? [],
-      'TC-05-23: with the policy answering false (hidden at EVERY launch — DV-27(3), ' +
-        'unconditional BRIEF wording) the launch path must not show() the window — the first ' +
-        'show belongs to tray "Show window" (FR-40/AC-05.3)',
-    ).not.toContain('show');
+      'TC-05-23 (issue #25): the launch policy answers TRUE (FR-38 amended — the ' +
+        'window shows on launch), so the launch path must show() the window right ' +
+        'after consulting shouldShowWindowOnLaunch() — never leave it tray-only',
+    ).toContain('show');
   });
 });
