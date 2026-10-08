@@ -5,13 +5,35 @@ directories:
 files:
   - out/**
   - package.json
+# M2-05 (TC-PKG-05): pinned explicitly — the package ships the asar
+# archive, never loose files (M1 finding S5-18 recommendation).
+asar: true
 npmRebuild: false
+# M2-05 owner decisions (2026-10-08): the mac build is intentionally
+# UNSIGNED (no Apple Developer account, BRIEF §10) and Linux ships
+# AppImage + .deb + .rpm (BRIEF §9). The core pinned in
+# docs/analysis/core-pin.md is staged by `npm run prepare:core` into
+# core-bin/<target>/ and packed directory-level below: xray + geoip.dat +
+# geosite.dat + LICENSE + README.md. The runtime resolver
+# (src/main/core-binary-path.ts, TC-02-18) serves core/<platform>/xray;
+# user instructions for the unsigned build live in
+# docs/product/macos-gatekeeper.md (TC-PKG-07).
 mac:
   category: public.app-category.utilities
+  # Owner decision 2026-10-08 (BRIEF §10): no Apple Developer account —
+  # declare the build unsigned instead of configuring a signing identity.
+  identity: null
   target:
     - dmg
+  extraResources:
+    - from: core-bin/darwin-${arch}
+      to: core/darwin
 linux:
   category: Network
   target:
     - AppImage
     - deb
+    - rpm
+  extraResources:
+    - from: core-bin/linux-${arch}
+      to: core/linux

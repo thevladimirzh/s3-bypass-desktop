@@ -65,13 +65,16 @@ pattern of DV-36/DV-37.
 
 ### Phase C — Packaging
 
-- [ ] **M2-05** · developer · **L** · deps: M2-04 · `todo`
+- [x] **M2-05** · developer · **L** · deps: M2-04 · `done`
       `electron-builder` config: `appId` / productName, targets — macOS **unsigned**
       `.dmg`, Linux **AppImage + `.deb` + `.rpm`** (x64 first, arm64 follows in the
       CI matrix per BRIEF §9); core in `extraResources`; asar on. Gatekeeper
       instructions doc for the unsigned build (`docs/product/macos-gatekeeper.md`).
       RED: structural config pins — every target present, no signing identity
       configured, core included, instructions doc exists.
+      Evidence: RED `17b993c` (TC-PKG-05..07, observed 3 failed | 223 passed) →
+      GREEN in this commit (yml amendments + Gatekeeper doc; 226 passed |
+      0 failed). The actual `npm run dist` build is deferred to M2-07 (CI, DoD #1) + M2-12 (fresh machine, DoD #2).
 - [ ] **M2-06** · developer · **S** · deps: M2-05 · `todo`
       GPL-3.0 compliance (BRIEF §5): third-party attributions + license texts ship
       inside the artifacts (`resources/licenses/` — Electron, the xray-core Go

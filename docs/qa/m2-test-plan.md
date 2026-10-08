@@ -151,6 +151,22 @@ untouched (same 2 VPN-file excludes, DV-33). Observed:
 `Tests 3 failed | 223 passed (226)`, `Test Files 1 failed | 33 passed (34)`,
 exit 1; `npm run lint` + `npm run typecheck` + `npx prettier --check` exit 0.
 
+**M2-05 electron-builder config — GREEN** (2026-10-08): artifacts per DV-41 —
+`electron-builder.yml` amended (top-level `asar: true`, which satisfies M1
+finding S5-18's asar-pin recommendation — that row itself stays open until its
+M2-exit deadline; `mac: identity: null` + `extraResources core-bin/darwin-${arch}`
+→ `core/darwin`; `linux` targets AppImage / deb / rpm +
+`core-bin/linux-${arch}` → `core/linux`, directory-level so xray + geodata +
+LICENSE + README all ship) and `docs/product/macos-gatekeeper.md` (NEW,
+English: right-click → Open, System Settings → Privacy & Security → Open
+Anyway, the `xattr -cr` alternative, and an explicit "NO notarization"
+statement per the owner decision of 2026-10-08). Observed:
+`Tests 226 passed (226)`, `Test Files 34 passed (34)` — TC-PKG-05/06/07 GREEN,
+baseline 223/0 untouched (+3 = this batch's own RED). The actual
+`npm run dist` build stays deferred on purpose: M2-07 (release CI, DoD #1) and
+M2-12 (fresh-machine install, DoD #2) own it. `npm run lint` +
+`npm run typecheck` + `npx prettier --check` exit 0.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 
