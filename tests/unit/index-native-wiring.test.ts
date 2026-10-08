@@ -642,6 +642,59 @@ describe('native window-lifecycle wiring in src/main/index.ts (plan M1-23a)', ()
         'restoreSystemProxy(…) — the system-proxy restore hook of plan M1-23a',
     ).toBe(true);
   });
+
+  it('quitTeardown.stopFailureSurfacedNotSwallowed (AC-05.5 fail closed, audit B-13, TC-POL-03)', () => {
+    // M3-05 (audit B-13): the quit-time force-stop failure was dropped at
+    // TWO layers — the stopCore dep awaited `handleStopForce()` and threw
+    // its OperationResult away (so the policy never saw a failure at all),
+    // and `beginQuit`'s `.catch(() => {…})` ate the rethrow with a comment
+    // claiming "the caller" would surface it — no caller ever did. AC-05.5
+    // says fail closed: the dialog path shows the documented triple.
+    // Structural pins (precedent TC-06-15 / TC-IPC-10, comment-stripped).
+    const source = indexSource();
+    const deps = lifecycleDepsBlock(source);
+
+    expect(
+      /const\s+\w+\s*=\s*await\s+coreWiring\.handleStopForce\s*\(\s*\)/.test(deps),
+      'B-13: the quit stopCore dep must BIND the force-stop result — awaited-and-' +
+        'dropped swallows every documented stop failure before the policy can rethrow it',
+    ).toBe(true);
+    expect(
+      /if\s*\(\s*!\s*\w+\.ok\s*\)\s*\{\s*throw\s+\w+[\w.]*;?\s*\}/.test(deps),
+      'B-13/AC-05.5: a failed force-stop must throw the documented triple so ' +
+        'runTeardown records it as the first failure (FR-48: the triple itself, ' +
+        'never a raw error object)',
+    ).toBe(true);
+    expect(
+      /handleBeforeQuit\(\)[\s\S]{0,160}\.catch\([\s\S]{0,240}surfaceQuitFailure/.test(source),
+      'B-13: beginQuit must route the rethrown first failure to a surfacing function — ' +
+        'the empty .catch(() => {…}) of the audit is exactly the swallow',
+    ).toBe(true);
+    expect(
+      /\.catch\(\s*\(\s*\)\s*=>\s*\{\s*\}\s*\)/.test(source),
+      'B-13: the empty catch swallow must be gone from index.ts',
+    ).toBe(false);
+
+    const surfacer = /function\s+surfaceQuitFailure[\s\S]*?\n\}/.exec(source)?.[0] ?? '';
+    expect(
+      surfacer.length,
+      'B-13: index.ts must own a quit-failure dialog surface (the sibling of ' +
+        'surfaceRestoreFailure — the stop failure needs the same dialog path)',
+    ).toBeGreaterThan(0);
+    expect(
+      /dialog\s*\.\s*showMessageBox\s*\(/.test(surfacer),
+      'AC-05.5 fail closed: the surfacing is a native dialog, not a log line',
+    ).toBe(true);
+    expect(
+      /isAppError\s*\(/.test(surfacer),
+      'FR-48: only documented triples reach the dialog — non-triple infrastructure ' +
+        'failures (hung-step budget timeouts) stay non-visual, never raw text',
+    ).toBe(true);
+    expect(
+      /nextStep/.test(surfacer),
+      'NFR-5: the dialog presents the triple fields (title/cause/nextStep), selectable text',
+    ).toBe(true);
+  });
 });
 
 describe('system-proxy restore hook + execFile executor seam (FR-35, PR-08)', () => {

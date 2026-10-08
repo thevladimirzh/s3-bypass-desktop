@@ -70,7 +70,7 @@ the DV-36/DV-37 pattern.
 
 ### Phase B — UX surfaces (usability pass, BRIEF §2 deliverable 2)
 
-- [ ] **M3-05** · qa · **M** · deps: M3-02 · `todo`
+- [x] **M3-05** · qa · **M** · deps: M3-02 · `done` (RED, 2026-10-08 — m3-test-plan §3/§10, TC-POL-03)
       RED for the surface audit findings: AC-04.5 manual-proxy hint actually
       rendered (the renderer must read `ProxyState.supported`/`hint` — today it
       ignores both, so a KDE user sees a broken toggle, no honest hint);

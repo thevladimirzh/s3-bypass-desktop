@@ -152,3 +152,24 @@ describe('Logs view — copy delivers the visible text (AC-06.5, FR-49)', () => 
     });
   });
 });
+
+/**
+ * M3-05 (TC-POL-03, docs/qa/m3-test-plan.md §3): the empty-state copy ships
+ * but was never pinned — a reword would pass every suite silently. Additive
+ * only (strategy §5.2).
+ */
+describe('Logs view — empty state (M3-05, TC-POL-03)', () => {
+  it('logs.view.emptyStateTextPinned', async () => {
+    installBridge();
+    if (window.s3Bypass !== undefined) {
+      window.s3Bypass.getLogs = async () => ({ lines: [] });
+    }
+    render(<App />);
+
+    expect(
+      await screen.findByText('No log lines yet.'),
+      'M3-05: the empty Logs view must keep its plain-language empty state (FR-45: ' +
+        'an empty view explains itself instead of showing a blank box)',
+    ).toBeTruthy();
+  });
+});

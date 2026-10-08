@@ -409,6 +409,31 @@ describe('tray Quit teardown (US-05 AC-05.5, FR-19, data-flows §5) — TC-05-05
     ).toEqual(['stopCore', 'restoreProxy', 'requestQuit']);
   });
 
+  it('trayQuit.stopFailure.firstFailureRethrownAfterRequestQuit (AC-05.5, TC-POL-03)', async () => {
+    // M3-05 (audit B-13): the surfacing contract the native wiring RELIES
+    // on — window-lifecycle.ts's own header ("the first failure — if any —
+    // is rethrown AFTER `requestQuit` so the caller may surface it") was
+    // never pinned ("Whether the promise rejects is NOT pinned"), which is
+    // exactly how the quit-time stop failure ended up swallowed at the
+    // call site. Pinning it here is additive (strategy §5.2): the steps and
+    // the exit still run first, THEN the first failure surfaces.
+    const { lifecycle, recorder } = await loadLifecycle({
+      stopCore: async () => {
+        throw new Error('simulated core-stop failure');
+      },
+    });
+
+    await expect(
+      lifecycle.handleBeforeQuit(),
+      'B-13/AC-05.5: the first teardown failure must be rethrown to the caller ' +
+        '(after requestQuit) — the caller is the surface that shows it',
+    ).rejects.toThrow('simulated core-stop failure');
+    expect(
+      recorder.calls,
+      'the rethrow must not skip the proxy revert or the exit (§5, FR-35/AC-05.5)',
+    ).toEqual(['stopCore', 'restoreProxy', 'requestQuit']);
+  });
+
   it('trayQuit.restoreFailure.quitStillRequested', async () => {
     // FR-35 / data-flows §5: revert failure → E-PLAT-003 warning (M1-20 owns
     // the wording) but the quit proceeds — no orphan, no hung quit (AC-05.5).

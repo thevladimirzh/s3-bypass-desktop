@@ -84,6 +84,28 @@ now-documented `E-VAL-016` (DV-19 superseded); `errors.md` §0/§1/§3/§4 amend
 
 ---
 
+## 3. UX surfaces (M3-05 RED / M3-06 GREEN) — TC-POL-03
+
+| Pin                                                         | Surface / finding                                                                                                                                                                                                                 | Suite                         | Status                          |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------- |
+| `app.footer.shippedProductCopyNotM0ScaffoldNote`            | footer `App.tsx` still says "M0 scaffold — tunnel features land in M1." → shipped copy = `S3 Bypass Desktop` (BRIEF §9 productName)                                                                                               | `app-render.test.tsx`         | RED-written                     |
+| `app.proxy.unsupportedDesktopRendersExactManualHint`        | AC-04.5 (audit B-11): renderer must read `ProxyState.supported`/`hint` and render the exact data-flows §3.3 sentence                                                                                                              | `app-render.test.tsx`         | RED-written                     |
+| `app.proxy.supportedDesktopShowsNoManualHint`               | the hint is the unsupported answer only — never shown when supported                                                                                                                                                              | `app-render.test.tsx`         | observed GREEN in the RED batch |
+| `app.statusIpcLine.noBridgeKeepsDevParenthetical`           | plain-browser/dev context keeps "(run inside Electron)"                                                                                                                                                                           | `app-render.test.tsx`         | observed GREEN in the RED batch |
+| `app.statusIpcLine.bridgePresentShowsNoDevText`             | audit: a packaged app whose ping failed must not see dev text                                                                                                                                                                     | `app-render.test.tsx`         | RED-written                     |
+| `app.statusLabels.rendererAndTrayMapsIdentical`             | duplicated status-label maps (renderer badge vs tray statusText) — ABSENCE RED until both are exported from one source                                                                                                            | `app-render.test.tsx`         | RED-written (absence)           |
+| `logs.view.emptyStateTextPinned`                            | Logs empty-state copy ("No log lines yet.") ships but was never pinned                                                                                                                                                            | `logs-view.test.tsx`          | observed GREEN in the RED batch |
+| `trayQuit.stopFailure.firstFailureRethrownAfterRequestQuit` | the policy-level surfacing contract (`window-lifecycle.ts` header) was explicitly unpinned ("whether the promise rejects is NOT pinned") — pinning it is what B-13's call-site fix relies on                                      | `window-lifecycle.test.ts`    | observed GREEN in the RED batch |
+| `quitTeardown.stopFailureSurfacedNotSwallowed`              | audit B-13 source pins: stopCore binds + throws the `handleStopForce` result; `beginQuit` routes the rethrow to `surfaceQuitFailure` (native dialog, `isAppError` gate, triple fields); the empty `.catch(() => {})` must be gone | `index-native-wiring.test.ts` | RED-written                     |
+
+Scope decisions recorded in the RED (owner-approved batch B): the unsupported-desktop
+hint is _rendered_ but the toggle state machine is untouched (its refusal path already
+answers with the documented `E-PLAT-001` triple, AC-04.6); non-triple quit failures
+(hung-step budget timeouts) stay non-visual — inventing wording for them would violate
+errors.md §0 (only documented triples reach the user).
+
+---
+
 ## 10. Execution log (per batch)
 
 _Appended when a batch is written/observed — RED entry first, then GREEN, mirroring
@@ -137,6 +159,36 @@ results.)_
   comment-only code renames in `core-supervisor.test.ts`/`quit-force-stop.test.ts`.
 - Result: **299 passed (299)** / 43 files — all 9 named REDs resolved. e2e:
   1 passed (1).
+
+### M3-05 RED (UX surfaces, 2026-10-08)
+
+- Chain: prettier `docs/ src/ tests/` clean, typecheck rc=0, eslint rc=0
+  (one RED-fixup before this observation: the status-labels test pulled
+  `src/main/window-lifecycle.ts` into the tsconfig.web program — no `node`
+  types → `NodeJS` namespace error; the tray half now loads through a
+  non-literal specifier, the documented absence-RED loader trick, so the
+  web project never follows the import; second fix: `exactOptionalPropertyTypes`
+  on the `window.s3Bypass` spread in the empty-state pin — replaced by a
+  guarded property assignment).
+- Suite: **5 failed | 303 passed (308)** — baseline 299 → +9 tests
+  (6 app-render + 1 logs empty-state + 1 lifecycle rethrow + 1 source scan).
+  The 5 observed REDs are exactly the named findings:
+  1. `app.footer.shippedProductCopyNotM0ScaffoldNote` — footer still the
+     M0 scaffold note;
+  2. `app.proxy.unsupportedDesktopRendersExactManualHint` — renderer never
+     reads `ProxyState.supported`/`hint` (audit B-11, AC-04.5);
+  3. `app.statusIpcLine.bridgePresentShowsNoDevText` — dev parenthetical
+     renders even when the bridge exists;
+  4. `app.statusLabels.rendererAndTrayMapsIdentical` — ABSENCE RED (neither
+     map is exported; M3-06 creates the shared source);
+  5. `quitTeardown.stopFailureSurfacedNotSwallowed` — audit B-13: the
+     `handleStopForce` result is dropped and `beginQuit`'s catch is empty.
+- Observed GREEN in the RED batch: `supportedDesktopShowsNoManualHint`,
+  `noBridgeKeepsDevParenthetical`, `logs.view.emptyStateTextPinned`,
+  `trayQuit.stopFailure.firstFailureRethrownAfterRequestQuit` (the
+  policy-level contract the call-site fix relies on).
+- e2e: not re-run for this RED (suite-only + docs; e2e unchanged, 1/1 at
+  `c0a2eb7`).
 
 ---
 
