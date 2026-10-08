@@ -333,10 +333,10 @@ describe('TC-PKG-15 — .deb on ubuntu, .rpm in a pinned Fedora container (M2-07
         '(actions/cache tar --zstd)',
     ).toMatch(/dnf -y install[^\n]*git[^\n]*rpm-build[^\n]*unzip[^\n]*zstd/);
     expect(
-      rpm.indexOf('dnf -y install'),
-      'DV-47: the dnf step must run BEFORE actions/checkout (the ' +
-        'fedora-minimal image has no /Users/vladimir/.local/bin/git-bot for the checkout action)',
-    ).toBeLessThan(rpm.indexOf('actions/checkout'));
+      rpm.indexOf('run: dnf -y install'),
+      'DV-47: the dnf step must run BEFORE the checkout step (the ' +
+        'fedora-minimal image has no git for actions/checkout)',
+    ).toBeLessThan(rpm.indexOf('- uses: actions/checkout'));
     expect(
       rpm,
       'DV-47: this leg builds ONLY the rpm — `--linux rpm` (AppImage/deb ' +
