@@ -89,6 +89,15 @@ interface AfterPackVerifyModule {
     target: string;
     pinDocText: string;
   }): void;
+  /** The electron-builder `Arch` enum → staged-target seam (TC-PKG-22 / DV-65). */
+  archName(arch: unknown): string;
+  /** The electron-builder `afterPack(context)` entry (TC-PKG-22 / DV-65). */
+  default(context: {
+    electronPlatformName: string;
+    arch: unknown;
+    appOutDir: string;
+    packager?: unknown;
+  }): Promise<void>;
 }
 
 const coreStagingSpecifier: string = '../../scripts/core-staging';
@@ -296,6 +305,82 @@ describe('TC-PKG-20 — the pack gate is wired into electron-builder (issue #20)
   it('the hook module exists and exports the electron-builder entry point', () => {
     const src = readFileSync(join(ROOT, 'scripts', 'after-pack-verify.mjs'), 'utf8');
     expect(src).toMatch(/export default/);
+  });
+});
+
+/**
+ * TC-PKG-22 (DV-65 — the M3-10 validation run caught this) — the afterPack
+ * entry must translate electron-builder's `Arch` ENUM faithfully. The
+ * validation tag run `v0.0.1-m310check` (run 37846078455) failed ALL THREE
+ * legs with `core pack gate: no staging manifest for linux-ia32` /
+ * `darwin-ia32` — the x64 builds (enum `1`) were being read as `ia32`,
+ * because `ARCH_BY_ENUM` was written with a table that never matched
+ * `builder-util`'s real enum (`ia32=0, x64=1, armv7l=2, arm64=3,
+ * universal=4`, node_modules/builder-util/out/arch.d.ts).
+ *
+ * Why TC-PKG-19 never saw it: those tests drive `verifyPackedCore({target})`
+ * with literal STRING targets — the enum path only exists in the default
+ * `afterPack(context)` export, which nothing called. The local DV-60 GREEN
+ * ran on an arm64 host (`3 → arm64`, coincidentally right), so the bug
+ * shipped to CI.
+ *
+ * RED: the `archName` seam is not exported (first assertion fails by name),
+ * and the default entry maps `arch: 0` (ia32) to `linux-x64` — it walks
+ * past the manifest lookup into the missing packed dir instead of failing
+ * closed on the never-staged `linux-ia32` target.
+ */
+describe('TC-PKG-22 — afterPack maps electron-builder Arch enums faithfully (DV-65, run 37846078455)', () => {
+  it('afterPack.archEnumToStagedTargetName', async () => {
+    const mod = await loadAfterPackVerify();
+    expect(
+      typeof mod.archName,
+      'DV-65: the Arch-enum seam must be exported so the mapping is pinned ' +
+        'row by row (extend AfterPackVerifyModule — precedent: the exported ' +
+        'pure verifyPackedCore)',
+    ).toBe('function');
+
+    // The REAL builder-util enum, verified against node_modules/builder-util/
+    // out/arch.d.ts: ia32=0, x64=1, armv7l=2, arm64=3, universal=4.
+    expect(
+      mod.archName(1),
+      'DV-65: x64 (enum 1) — THE CI-caught case: the ubuntu leg and the ' +
+        'second mac arch both resolved to "-ia32" and tripped the fail-closed ' +
+        'gate on run 37846078455',
+    ).toBe('x64');
+    expect(mod.archName(0), 'ia32 (enum 0)').toBe('ia32');
+    expect(mod.archName(2), 'armv7l (enum 2)').toBe('armv7l');
+    expect(mod.archName(3), 'arm64 (enum 3) — the arm64 leg passed by coincidence').toBe('arm64');
+    expect(
+      mod.archName(4),
+      'universal (enum 4) — resolves faithfully to a target no manifest ' +
+        'stages, so the gate fails closed on it (never silently packs)',
+    ).toBe('universal');
+    expect(
+      mod.archName('x86_64'),
+      'the string passthrough keeps the x86_64 → x64 normalization (core-pin ' + 'asset names)',
+    ).toBe('x64');
+    expect(() => mod.archName(99), 'an unknown enum stays fail-closed').toThrow(/unknown arch/);
+  });
+
+  it('afterPack.defaultEntryResolvesTargetFromContextArch', async () => {
+    const mod = await loadAfterPackVerify();
+    const afterPack = mod.default;
+    expect(typeof afterPack, 'the electron-builder entry (default export) must exist').toBe(
+      'function',
+    );
+
+    // arch 0 = ia32 (real enum): no ia32 target is ever staged, so the gate
+    // must fail closed with the IA32 target NAME — proving the enum
+    // translation reached verifyPackedCore intact. RED: the shipped table
+    // reads 0 as x64, walks into the repo's linux-x64 manifest and dies
+    // later (missing packed dir) — never mentioning linux-ia32.
+    await expect(
+      afterPack({
+        electronPlatformName: 'linux',
+        arch: 0,
+        appOutDir: tmp('fix65-ctx'),
+      }),
+    ).rejects.toThrow('no staging manifest for linux-ia32');
   });
 });
 
