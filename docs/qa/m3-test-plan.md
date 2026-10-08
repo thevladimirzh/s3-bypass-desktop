@@ -445,6 +445,13 @@ ${productName}-${version}-${arch}.dmg` + truthful deb/rpm filenames
   manifest lists `S3.Bypass.Desktop-…` names (re-verified locally:
   `shasum -a 256 -c SHA256SUMS.txt` → 5/5 OK exactly as a tester
   downloads it); the release body carries the normalization note.
+- Distribution decision (explicit owner word): the repo was flipped to
+  **public** so the release link works without auth — pre-flip marker
+  scan over tree + full history came back clean (3 hits, all false
+  positives: a stock GPLv3 clause in LICENSE, an ordinary prose
+  sentence in an M0 scaffold commit message, and AWS's official
+  `AKIAIOSFODNN7EXAMPLE` key in the redaction test). Anonymous fetch
+  of the release page and `docs/user/beta-setup.md` → HTTP 200.
 - M3-11 stays `blocked-owner-cohort` — release link + handout ready
   for the cohort.
 

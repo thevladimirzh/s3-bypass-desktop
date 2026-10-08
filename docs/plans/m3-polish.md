@@ -122,7 +122,7 @@ the DV-36/DV-37 pattern.
 
 ### Phase G — Beta & acceptance (DoD 1–4)
 
-- [ ] **M3-11** · owner · **—** · deps: M3-09, M3-10 · `blocked-owner-cohort` (release published: `v0.1.0-beta.1` prerelease, run `37850207592` green — arm64+x64 dmg + AppImage/deb + native rpm + SHA256SUMS attached; handout `docs/user/beta-setup.md`)
+- [ ] **M3-11** · owner · **—** · deps: M3-09, M3-10 · `blocked-owner-cohort` (release published: `v0.1.0-beta.1` prerelease, run `37850207592` green — arm64+x64 dmg + AppImage/deb + native rpm + SHA256SUMS attached; repo public → link opens anonymously; handout `docs/user/beta-setup.md`)
       Hand the beta installers + setup doc to at least one external tester
       (DoD #1); feedback triage into `docs/product/backlog.md` — BRIEF §3
       items never land on this board.
