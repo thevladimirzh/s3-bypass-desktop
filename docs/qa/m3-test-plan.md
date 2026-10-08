@@ -425,6 +425,29 @@ manifest — written then re-verified` ✓; artifacts — `artifacts-macOS`
   published by CI). M3-11 remains `blocked-owner-cohort`; artifacts are
   built and waiting.
 
+### GitHub Release `v0.1.0-beta.1` (owner-requested, 2026-10-09)
+
+- Evidence pass on run `37848480103` surfaced a naming gap:
+  electron-builder drops the arch suffix for the default arch, so the
+  Intel dmg shipped as `S3 Bypass Desktop-0.1.0-beta.1.dmg` (arch
+  confirmed by `lipo -archs` on the mounted app: `x86_64`; the `-arm64`
+  dmg = `arm64`) while `beta-setup.md` promises `-x64.dmg`. TC-PKG-23
+  RED `7bb60e4` → GREEN `14c8c52`: `mac.artifactName =
+${productName}-${version}-${arch}.dmg` + truthful deb/rpm filenames
+  in the user docs; **326 passed (326)**, e2e 1/1.
+- Tag re-pushed at GREEN → rebuild run **`37850207592` = SUCCESS on
+  all three legs**; `-x64.dmg` present, and all five installers
+  verified OK against their per-leg CI `SHA256SUMS.txt`.
+- Release published (owner-approved body, marker scan 0 →
+  https://github.com/thevladimirzh/s3-bypass-desktop/releases/tag/v0.1.0-beta.1)
+  — **prerelease** ✓, 5 installers + `SHA256SUMS.txt` (~682 MB).
+  GitHub normalizes spaces in asset names to dots, so the attached
+  manifest lists `S3.Bypass.Desktop-…` names (re-verified locally:
+  `shasum -a 256 -c SHA256SUMS.txt` → 5/5 OK exactly as a tester
+  downloads it); the release body carries the normalization note.
+- M3-11 stays `blocked-owner-cohort` — release link + handout ready
+  for the cohort.
+
 #### DV-65 GREEN (2026-10-09)
 
 - Chain: prettier clean (incl. the script), typecheck rc=0, eslint rc=0.
