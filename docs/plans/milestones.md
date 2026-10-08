@@ -33,7 +33,9 @@ Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative chec
 - CI workflow (`.github/workflows/ci.yml`): lint + typecheck + test on every push, matrix **macos-latest + ubuntu-latest**.
 - Folder structure per `BRIEF.md` §4 and docs skeleton: `docs/product/`, `docs/analysis/`, `docs/qa/`, `docs/plans/` with starter templates.
 - `.gitignore` (incl. `.env`) and `.env.example` only — no real secrets ever (BRIEF §7).
-- License/GPL notice file covering the bundled Go core (BRIEF §5).
+- License notice file (root `LICENSE` = GPL-3.0 for the client code; the
+  bundled core carries its own upstream LICENSE — MPL-2.0, attributed in
+  M2-06; BRIEF §5).
 
 ### Definition of Done
 
@@ -89,7 +91,9 @@ Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative chec
 - `electron-builder` config → unsigned `.dmg` (macOS), AppImage + `.deb` + `.rpm` (Linux) —
   formats per owner decision 2026-10-08 (BRIEF §9/§10).
 - Release CI: build artifacts **on tags**; lint/test still on every push.
-- GPL-3.0 compliance for the bundled Go core (license texts shipped/attributed).
+- License compliance for the bundled Go core — **MPL-2.0** (license texts
+  shipped/attributed; corrected 2026-10-08 from the earlier GPL-3.0 claim,
+  evidence in `docs/analysis/core-pin.md`).
 - macOS: unsigned build + Gatekeeper instructions (notarization resolved out of scope —
   owner: no Apple account, 2026-10-08).
 
@@ -98,7 +102,7 @@ Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative chec
 1. Tag produces installable artifacts for all three build targets (darwin-x64, darwin-arm64, linux-x64 — Linux ships AppImage + `.deb` + `.rpm`); SHA-256 of bundled core verified at build time.
 2. Fresh-machine install runs the MVP loop (import → start → stop) from the packaged app.
 3. Security review before any external distribution (BRIEF §5): supply chain, S3 key handling, IPC — findings triaged.
-4. GPL notice + third-party attributions present in artifacts.
+4. License notice (core: MPL-2.0) + third-party attributions present in artifacts.
 5. **Handoff:** M2 done → M3 beta cohort gets download links.
 
 ### Estimate

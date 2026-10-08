@@ -76,9 +76,11 @@ pattern of DV-36/DV-37.
       GREEN in this commit (yml amendments + Gatekeeper doc; 226 passed |
       0 failed). The actual `npm run dist` build is deferred to M2-07 (CI, DoD #1) + M2-12 (fresh machine, DoD #2).
 - [ ] **M2-06** · developer · **S** · deps: M2-05 · `todo`
-      GPL-3.0 compliance (BRIEF §5): third-party attributions + license texts ship
-      inside the artifacts (`resources/licenses/` — Electron, the xray-core Go
-      dependency, notable npm deps). RED: pin every listed package has its license
+      License compliance (core = **MPL-2.0** per the release artifacts — the
+      BRIEF's GPL-3.0 claim was corrected 2026-10-08, evidence in
+      `docs/analysis/core-pin.md`): third-party attributions + license texts
+      ship inside the artifacts (`resources/licenses/` — the xray-core LICENSE,
+      Electron, notable npm deps). RED: pin every listed package has its license
       file and the pack config includes the directory (M2 DoD #4).
 
 ### Phase D — Release CI & gates
@@ -128,7 +130,7 @@ graph TD
   M2-01 --> M2-03[M2-03 core pin + verify]
   M2-03 --> M2-04[M2-04 bundle + supervisor path]
   M2-04 --> M2-05[M2-05 electron-builder targets]
-  M2-05 --> M2-06[M2-06 GPL attributions]
+  M2-05 --> M2-06[M2-06 license attributions]
   M2-05 --> M2-07[M2-07 release CI + deferred jobs]
   M2-07 --> M2-08[M2-08 npm audit evidence]
   M2-05 --> M2-09[M2-09 security review]

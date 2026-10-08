@@ -30,7 +30,7 @@ the review transcript; this file is the tracking record required by
 5. Secrets hygiene: `.env` absent from disk, gitignored; `.env.example` placeholders only; repo-wide pattern scan (AWS/tokens/keys/passwords/URL-creds) → 0 matches.
 6. CI: `permissions: contents: read`, `npm ci` from lockfile, all registry URLs `https` with integrity hashes, timeout + concurrency set, no `${{ secrets.* }}`.
 7. IPC contract typed and namespaced (`app:ping`), returns static secret-free data.
-8. GPL-3.0: full `LICENSE`, `package.json` license field, bundled-binary notice in README/BRIEF.
+8. License: client code GPL-3.0 — full `LICENSE`, `package.json` license field, bundled-binary notice in README/BRIEF (the core itself is **MPL-2.0** per the release artifacts — corrected 2026-10-08, see `docs/analysis/core-pin.md`).
 9. No `innerHTML`/`eval`/`dangerouslySetInnerHTML`; user-visible data passes through JSX escaping.
 10. No input surface yet; validation correctly deferred to M1 with FR traceability.
 11. Single window, allocation-free handler, no listeners/loops/child processes.

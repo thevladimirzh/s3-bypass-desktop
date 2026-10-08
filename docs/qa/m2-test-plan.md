@@ -28,7 +28,7 @@ environment · `deferred-M3` = out of M2 scope per spec note.
 | 2   | Core pinning: verify script behavior + pin-doc structure                            | M2-03       | `TC-PKG-01..`                         |
 | 3   | Bundled-core path resolution: packaged > `CORE_BINARY_PATH` > honest error          | M2-04       | `TC-02-16..`, `TC-02-20`, `TC-PKG-04` |
 | 4   | electron-builder config: targets, unsigned macOS, core in resources, Gatekeeper doc | M2-05       | `TC-PKG-05..07`                       |
-| 5   | GPL attributions shipped inside the artifacts                                       | M2-06       | `TC-PKG-..`                           |
+| 5   | License attributions shipped inside the artifacts (core = MPL-2.0)                  | M2-06       | `TC-PKG-08..10`                       |
 | 6   | Release CI: tag → artifacts + SHA-256 manifest; coverage & e2e jobs land            | M2-07/M2-08 | `TC-PKG-..` (+ L3)                    |
 | 7   | Real-binary integration (strategy D-4) + authoritative coverage number (G-05)       | M2-10       | `TC-02-..` / `TC-03-..` (+ L3)        |
 | 8   | Issue #19 crash-path surfacing (FR-35 quit-time `E-PLAT-003`, tray freshness)       | M2-11       | `TC-04-20..`, `TC-05-24..`            |
@@ -67,9 +67,12 @@ discipline as `m1-test-plan.md` §14).
 | TC-PKG-06 | `builderConfig.coreBundledViaExtraResources`  | M2-05; M2-04 staging ↔ TC-02-18 layout     | unit (raw-text) | electron-builder.yml             | RED-written (M2-05; **new**, DV-41) |
 | TC-PKG-07 | `builderConfig.gatekeeperInstructionsExist`   | M2-05; BRIEF §9 Gatekeeper instructions    | unit (raw-text) | docs/product/macos-gatekeeper.md | RED-written (M2-05; **new**, DV-41) |
 
-## 5. GPL attributions (M2-06)
+## 5. License attributions (M2-06)
 
-_TBD at RED time — declared: `TC-PKG-..` (license files present + packed)._
+_TBD at RED time — declared: `TC-PKG-08..10` (notices doc, license texts,
+pack config includes the directory). The bundled core is **MPL-2.0** — the
+BRIEF's GPL-3.0 claim was corrected 2026-10-08 (evidence in
+`docs/analysis/core-pin.md`); the client itself stays GPL-3.0._
 
 ## 6. Release CI & gates (M2-07 / M2-08)
 

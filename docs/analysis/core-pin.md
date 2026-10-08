@@ -22,8 +22,10 @@ committer date 2026-09-26T16:06:17Z:
 | Commit SHA | `036606649aae3ee36102b02e6437c7266bc2f2be` |
 
 Source repository: `github.com/Fedarisha/Xray-core-fedarisha` (Go,
-GPL-3.0 — the bundled binary triggers the BRIEF §5 / M2-06 attribution
-duties).
+**MPL-2.0** — corrected 2026-10-08 from the BRIEF's GPL-3.0 claim: the LICENSE
+file inside every release asset reads "Mozilla Public License Version 2.0" and
+the GitHub license API reports `MPL-2.0`; the bundled binary still triggers
+the BRIEF §5 / M2-06 attribution duties — the client itself stays GPL-3.0).
 
 ## Pinned assets
 

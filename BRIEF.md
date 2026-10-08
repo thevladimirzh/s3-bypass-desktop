@@ -8,7 +8,9 @@ A desktop client for **macOS and Linux** for the _fedarisha_ S3 tunnel: instead 
 connecting to a proxy directly, the app exchanges traffic as objects through an
 S3-compatible bucket, so an outside observer sees ordinary cloud-storage traffic
 (whitelisted transport). The app supervises a bundled, modified Xray-core binary
-from `github.com/Fedarisha/Xray-core-fedarisha` (Go, GPL-3.0). Reference
+from `github.com/Fedarisha/Xray-core-fedarisha` (Go, MPL-2.0 — corrected
+2026-10-08: the release artifacts' LICENSE is the Mozilla Public License 2.0,
+evidence in `docs/analysis/core-pin.md`). Reference
 implementation for mobile: `SpaceNeuroX/s3-bypass` (Android).
 
 **One-liner:** _Import a config — press Start — the internet works._
@@ -49,7 +51,8 @@ S3-provider presets · deep OS integration.
   Development turns them green. Tests are never weakened to pass.
 - ESLint + Prettier; CI on every push (lint + test), build artifacts on tags.
 - Security review before any external distribution (S3 keys handling, IPC
-  surface, supply chain). GPL-3.0 obligations preserved.
+  surface, supply chain). License obligations preserved (client: GPL-3.0;
+  bundled core: MPL-2.0).
 - Roles: `product-manager`, `project-manager`, `business-analyst`, `qa`,
   `developer`, `cybersecurity` (read-only), `devops` — see `.opencode/agents/`.
 

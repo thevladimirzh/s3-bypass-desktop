@@ -124,7 +124,8 @@ M2 (US-02 AC-02.4 scope note); tests use fixtures, no real S3 credentials.
 - Targets: `darwin-x64`, `darwin-arm64`, `linux-x64` (arm64 follows in CI).
 - Core binary version- and SHA-256-pinned; mismatch → refuse to start with a
   clear supply-chain error message.
-- GPL-3.0 obligations preserved for the bundled core.
+- License obligations preserved for the bundled core: MPL-2.0 text and
+  attribution ship in the artifacts (M2-06).
 
 ## 6. Out of scope (MVP)
 

@@ -60,7 +60,7 @@ task is `done` until `npm run lint && npm run typecheck && npm test` are green.
       (test-strategy pointer). This plan set (`milestones.md`, `m0-scaffold.md`,
       `m1-mvp.md`) already exists — link them.
 - [ ] **M0-10** · developer · **S** · deps: M0-08 · `done`
-      `LICENSE` / licensing note: client code license + GPL-3.0 notice for the
+      `LICENSE` / licensing note: client code license + license notice for the
       bundled `Fedarisha/Xray-core-fedarisha` binary (BRIEF §5, §4).
 
 ### Phase 3 — Lint / format / test tooling

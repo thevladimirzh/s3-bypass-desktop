@@ -6,7 +6,7 @@
  * Basis: board task M2-05 (`docs/plans/m2-packaging.md` Phase C); owner
  * decisions of 2026-10-08 (BRIEF §9 — Linux ships AppImage + `.deb` +
  * `.rpm`; BRIEF §10 — no Apple Developer account, the build is unsigned);
- * M2 DoD #4 (GPL notice inside artifacts); M1 finding S5-18 (pin `asar`
+ * M2 DoD #4 (license notice inside artifacts); M1 finding S5-18 (pin `asar`
  * explicitly); M2-04 staged `core-bin/<target>/`.
  *
  * ─────────────────────────────────────────────────────────────────────────────

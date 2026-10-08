@@ -305,7 +305,8 @@ These are mandatory restatements of `PRD §5`; each line is directly testable.
 
 - Targets `darwin-x64`, `darwin-arm64`, `linux-x64`; other platforms fail fast with `E-PLAT-006` (PR-06).
 - Core binary version- and SHA-256-pinned; mismatch → refuse to start with `E-IO-005`, clear supply-chain message (FR-14). M1 ships the missing-binary half only (AC-02.4 scope note).
-- GPL-3.0 obligations preserved for the bundled core (documentation/package-level, verified at M2).
+- License obligations preserved for the bundled core — MPL-2.0
+  (documentation/package-level, verified at M2).
 
 ---
 

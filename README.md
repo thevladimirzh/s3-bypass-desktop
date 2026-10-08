@@ -30,5 +30,6 @@ npm run typecheck  # tsc --noEmit
 
 ## License
 
-Client code: see repository license. Bundled core binary: GPL-3.0
-(`Fedarisha/Xray-core-fedarisha`).
+Client code: see repository license (GPL-3.0). Bundled core binary: MPL-2.0
+(`Fedarisha/Xray-core-fedarisha` — its own LICENSE ships inside the package;
+evidence in `docs/analysis/core-pin.md`).
