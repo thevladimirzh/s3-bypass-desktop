@@ -36,7 +36,7 @@ import { resolveCoreBinaryPath } from './core-binary-path';
 import { createSupervisor } from './core-supervisor';
 import { createCoreWiring } from './core-wiring';
 import { assertTrustedSender } from './ipc-guard';
-import { createLogCollector } from './log-collector';
+import { createLogCollector, redactionContextFromConfig } from './log-collector';
 import { validateClientConfig } from './profile-validator';
 import {
   deleteStoredProfile,
@@ -88,6 +88,28 @@ function broadcastStatus(snapshot: StatusSnapshot): void {
  * receives what this collector returns (data-flows (b) step 6).
  */
 const logCollector = createLogCollector();
+
+/**
+ * Issue #24/DV-63: the §8.4 INTERNAL values of the STORED profile feed the
+ * collector's redaction context — refreshed at startup and after every
+ * (re-)import; fields MERGE, never clear (fail-closed: removing the profile
+ * does not un-redact lines that already carried its values). An unreadable
+ * store keeps the previous (possibly empty) context instead of failing.
+ */
+function refreshRedactionContext(): void {
+  try {
+    const raw = loadProfile();
+    if (raw === null) return;
+    const doc = parseStoredProfile(raw);
+    if (doc === null) return;
+    logCollector.setRedactionContext(redactionContextFromConfig(doc));
+  } catch {
+    // Degraded store (FR-59): the previous context stays, never a crash.
+  }
+}
+
+// Startup wiring (issue #24): a profile already present at boot counts too.
+refreshRedactionContext();
 
 /**
  * S5-7 (issue #13): the `log:line` coalescing window — lines accumulate and
@@ -970,7 +992,11 @@ ipcMain.handle(
     }
     importDialogInFlight = true;
     try {
-      return await importDialogFlow();
+      const result = await importDialogFlow();
+      // Issue #24/DV-63: the freshly imported profile's §8.4 INTERNAL
+      // values feed the redaction context immediately (fail-closed merge).
+      if (result.ok) refreshRedactionContext();
+      return result;
     } finally {
       importDialogInFlight = false;
     }

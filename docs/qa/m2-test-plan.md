@@ -797,6 +797,32 @@ byte-identical. Observed RED: **`Tests 8 failed | 283 passed (291)`, `Test Files
 40 passed (43)`** (baseline 289/43 + 2 new tests; all 8 failures are named assertions);
 `npm run typecheck`, `npx eslint .`, `npx prettier --check` all exit 0 in RED.
 
+**pre-M3 fix batch #24 — token-level redaction with class markers — GREEN** (2026-10-08):
+artifacts per DV-63 — `log-collector.ts` rewritten around `redactLine(text, context?)` in the
+declared order (self-closed `{…}` → plain, stack frame → plain, `XxxError:` suffix mask to
+EOL, context values FIRST so `prefix` beats `path`, name spans = whole matched token +
+adjacent value token for standalone matches, shape spans = match expanded to token
+boundaries; leftmost-then-widest overlap resolution) with `NAME_RULES`/`SHAPE_RULES`
+(markers: accessKey/secretKey/sessionToken/bucketPassword/password/cookie/authorization/
+signing/clientSecret/privateKey/config/awsKey/jwt/region/endpoint/path/run), the bare
+bucket/session rules dropped, `redactionContextFromConfig` (exactly the 5 §8.4 INTERNAL
+fields, SECRET excluded, tolerant) and `setRedactionContext` (fields MERGE — never clear,
+fail-closed) + the `redactionContext` option; document mode is now DEPTH-counted (issue #12
+gap 4's other report-accepted shape — inner `}` closers no longer exit a pretty-printed
+config early, which the old broad rules used to mask over; TC-06-23 pins hold byte-identical)
+and a self-closed single-line `{…}` never opens it (stray `"outbounds"` outside a document
+keeps fail-closed via the `[REDACTED:config]` token mask). `index.ts`: `refreshRedactionContext()`
+wired at startup AND after every successful `profile:import-dialog` (TC-06-26(i) raw-text pins;
+declared: its occurrence count ≥ 2 counts the function definition too — implementation ships 3
+occurrences: definition + 2 calls). Bookkeeping: a test-only RED-fixup commit `bd0d894` landed
+between RED and GREEN — the shared `expectRedactedDump` presence check, TC-01-07 and the
+TC-07-19 cause pin demanded the plain `[REDACTED]` substring that class markers do not contain
+(they would have failed in GREEN without any product defect). Observed: **`Tests 291 passed
+(291)`, `Test Files 43 passed (43)`** (+2 over 289/43); `npm run typecheck`, `npx eslint .`,
+`npx prettier --check` all exit 0; zero eslint `--fix` (DV-63(5) held). **e2e observation:**
+`npm run test:e2e` → `Tests 1 passed (1)` — the `Start`/`Stop` exact-name contract is
+untouched by the redaction rewrite.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 
