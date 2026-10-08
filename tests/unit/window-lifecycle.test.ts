@@ -275,8 +275,41 @@ describe('tray menu model derived from state (US-05 AC-05.4, FR-41) — TC-05-04
     ]);
 
     recorder.calls.length = 0;
+    recorder.setLiveState('running'); // M2-11: live = running makes the "Stop" click legal
     await lifecycle.handleMenuAction('stop');
     expect(recorder.calls, 'tray "Stop" must call stopTunnel exactly once').toEqual(['stopTunnel']);
+  });
+});
+
+// ————————————————————————————————————————————————————————————————
+// M2-11 / issue #19 — tray freshness advisory: dispatch re-validates the
+// LIVE state before `start`/`stop` forwards (TC-05-24, TC-05-25 — §8).
+// A stale menu-template click (a push racing the click) must be a silent
+// no-op, never an illegal transition attempt.
+// ————————————————————————————————————————————————————————————————
+
+describe('tray menu freshness re-check (M2-11, issue #19) — TC-05-24, TC-05-25', () => {
+  it('trayMenu.dispatch.staleStartSkippedWhenLiveStateDisallows', async () => {
+    const { lifecycle, recorder } = await loadLifecycle();
+    // The template may still say "Start enabled" while the world moved on.
+    recorder.setLiveState('running');
+    await lifecycle.handleMenuAction('start');
+    expect(
+      recorder.calls,
+      'TC-05-24 (issue #19 advisory): a stale Start click must NOT forward while the ' +
+        'live state disallows it — re-validate against the buildTrayMenu model first',
+    ).not.toContain('startTunnel');
+  });
+
+  it('trayMenu.dispatch.staleStopSkippedWhenLiveStateDisallows', async () => {
+    const { lifecycle, recorder } = await loadLifecycle();
+    recorder.setLiveState('stopped'); // Stop is only legal from `running`
+    await lifecycle.handleMenuAction('stop');
+    expect(
+      recorder.calls,
+      'TC-05-25: a stale Stop click must NOT forward outside `running` — the same ' +
+        'freshness re-check as TC-05-24, opposite action',
+    ).not.toContain('stopTunnel');
   });
 });
 

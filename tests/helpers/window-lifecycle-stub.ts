@@ -67,6 +67,14 @@ export interface WindowLifecycleDeps {
   startTunnel(): void | Promise<void>;
   /** Tray "Stop tunnel" — reuses the same supervisor path as `core:stop`. */
   stopTunnel(): void | Promise<void>;
+  /**
+   * M2-11 (issue #19, tray freshness advisory): the LIVE core state at
+   * dispatch time — the dispatcher re-validates `start`/`stop` against it
+   * before forwarding, so a stale menu-template click (a status push racing
+   * the click) never invokes an illegal transition. Same `buildTrayMenu`
+   * model as the template: one source of truth, no second legality copy.
+   */
+  getLiveState(): CoreState;
   /** Ask the host to exit the app (`app.quit()` wiring, M1-23) — called LAST. */
   requestQuit(): void;
 }
@@ -119,6 +127,8 @@ export async function loadWindowLifecycle(): Promise<WindowLifecycleModule> {
 export interface RecorderOverrides {
   stopCore?: () => Promise<void>;
   restoreProxy?: () => Promise<void>;
+  /** M2-11: canned live state for the freshness re-check (default `'stopped'`). */
+  getLiveState?: () => CoreState;
 }
 
 /** Records every lifecycle callback invocation by name, in call order. */
@@ -127,6 +137,8 @@ export interface LifecycleRecorder {
   readonly deps: WindowLifecycleDeps;
   /** Flips the injected `isQuitting()` flag (the host's quit marker). */
   setQuitting(value: boolean): void;
+  /** M2-11: sets the canned live state served by `deps.getLiveState()`. */
+  setLiveState(value: CoreState): void;
 }
 
 /**
@@ -137,8 +149,13 @@ export interface LifecycleRecorder {
 export function createLifecycleRecorder(overrides: RecorderOverrides = {}): LifecycleRecorder {
   const calls: string[] = [];
   let quitting = false;
+  // M2-11: default matches the app's initial state; getLiveState is a PURE
+  // read — it never records into `calls`, so the teardown ORDER pins and the
+  // dispatch `toEqual([...])` pins observe side effects only.
+  let liveState: CoreState = 'stopped';
   const deps: WindowLifecycleDeps = {
     isQuitting: () => quitting,
+    getLiveState: () => overrides.getLiveState?.() ?? liveState,
     stopCore: () => {
       calls.push('stopCore');
       return overrides.stopCore?.();
@@ -165,6 +182,9 @@ export function createLifecycleRecorder(overrides: RecorderOverrides = {}): Life
     deps,
     setQuitting: (value: boolean) => {
       quitting = value;
+    },
+    setLiveState: (value: CoreState) => {
+      liveState = value;
     },
   };
 }

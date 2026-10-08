@@ -78,6 +78,15 @@ export interface WindowLifecycleDeps {
   startTunnel(): void | Promise<void>;
   /** Tray "Stop tunnel" — reuses the same supervisor path as `core:stop`. */
   stopTunnel(): void | Promise<void>;
+  /**
+   * M2-11 (issue #19 — tray freshness advisory, FR-35 family): the LIVE core
+   * state consulted before `start`/`stop` is dispatched. The dispatcher
+   * re-validates through the SAME pure `buildTrayMenu` model the menu
+   * template is built from, so a stale template click (a status push racing
+   * the click) is a silent no-op instead of an illegal transition attempt —
+   * one source of truth, never a second legality copy.
+   */
+  getLiveState(): CoreState;
   /** LAST teardown step: ask the host to exit the app (`app.quit()` wiring). */
   requestQuit(): void;
 }

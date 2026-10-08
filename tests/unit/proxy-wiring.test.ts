@@ -101,6 +101,7 @@ import { fileURLToPath } from 'node:url';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SupervisorOptions } from '../../src/main/core-supervisor';
 import type {
   SetSystemProxyResult,
   SystemProxyContext,
@@ -113,6 +114,7 @@ import {
 } from '../../src/main/system-proxy';
 import { DEFAULT_SOCKS_PORT } from '../../src/shared/constants';
 import type { OperationResult, ProxyState } from '../../src/shared/ipc';
+import type { StatusSnapshot } from '../../src/shared/status-machine';
 import { waitFor } from '../helpers/core-supervisor-stub';
 import { stripComments } from '../helpers/log-collector-stub';
 
@@ -150,6 +152,10 @@ const probe = vi.hoisted(() => {
     applyMode: 'ok' as 'ok' | 'fail',
     /** The canned snapshot the apply returns — identity-pinned by restore. */
     snapshotResult: null as SystemProxySnapshot | null,
+    /** M2-11 (TC-04-20): order track — 'messageBox' before 'quit' pins the pre-exit dialog. */
+    events: [] as string[],
+    /** M2-11 (TC-04-21/22): options index.ts passed to the fake supervisor — the crash seam (`onStateChange`). */
+    supervisorOptions: null as SupervisorOptions | null,
   };
 });
 
@@ -244,7 +250,9 @@ vi.mock('electron', () => {
       whenReady: () => Promise.resolve(),
       on: recordAppEvent,
       addListener: recordAppEvent,
-      quit: () => undefined,
+      quit: () => {
+        probe.events.push('quit'); // M2-11: the exit request itself
+      },
       getPath: () => '/nonexistent-userdata-for-tests',
     },
     BrowserWindow: FakeBrowserWindow,
@@ -260,6 +268,7 @@ vi.mock('electron', () => {
       showOpenDialog: vi.fn(async () => ({ canceled: true, filePaths: [] as string[] })),
       showMessageBox: vi.fn(async (...args: unknown[]) => {
         probe.dialogCalls.push(args);
+        probe.events.push('messageBox'); // M2-11: order track vs 'quit'
         return { response: 0, checkboxChecked: false };
       }),
     },
@@ -333,23 +342,28 @@ vi.mock('../../src/main/system-proxy', async (importOriginal) => {
  * §2.3 guards).
  */
 vi.mock('../../src/main/core-supervisor', () => ({
-  createSupervisor: () => ({
-    start: (): Promise<OperationResult> =>
-      probe.startFails
-        ? Promise.resolve({
-            ok: false,
-            error: {
-              code: 'E-CORE-003',
-              title: 'Synthetic start failure',
-              cause: 'Injected refusal — the harness startFails flag (fixture).',
-              nextStep: 'n/a',
-            },
-          })
-        : Promise.resolve({ ok: true }),
-    stop: (): Promise<OperationResult> => Promise.resolve({ ok: true }),
-    forceStop: (): Promise<OperationResult> => Promise.resolve({ ok: true }),
-    isRunning: (): boolean => true,
-  }),
+  createSupervisor: (options: SupervisorOptions) => {
+    // M2-11: capture the wiring-provided options — `onStateChange` is the
+    // crash seam (in production the supervisor fires it on child death).
+    probe.supervisorOptions = options;
+    return {
+      start: (): Promise<OperationResult> =>
+        probe.startFails
+          ? Promise.resolve({
+              ok: false,
+              error: {
+                code: 'E-CORE-003',
+                title: 'Synthetic start failure',
+                cause: 'Injected refusal — the harness startFails flag (fixture).',
+                nextStep: 'n/a',
+              },
+            })
+          : Promise.resolve({ ok: true }),
+      stop: (): Promise<OperationResult> => Promise.resolve({ ok: true }),
+      forceStop: (): Promise<OperationResult> => Promise.resolve({ ok: true }),
+      isRunning: (): boolean => true,
+    };
+  },
 }));
 
 const DEV_URL = 'http://localhost:5173/';
@@ -712,5 +726,162 @@ describe('desktopEnv into the system-proxy context (TC-04-19, D-03 / S5-10)', ()
 
     // Cleanup: never leave an applied proxy behind for the next case.
     await invoke('proxy:set', { enabled: false });
+  });
+});
+
+// ————————————————————————————————————————————————————————————————
+// M2-11 / issue #19 — FR-35 fail-closed restore surfacing: a FAILED proxy
+// revert on the QUIT, CRASH and STOP arms must show the persistent
+// E-PLAT-003 warning (requirements FR-35, errors.md §4/§6, data-flows §5)
+// — never a silent leftover. TC-04-20..23 (m2-test-plan §8, RED first).
+// NOTE: `quit...` runs LAST on purpose — firing `before-quit` flips
+// index.ts's module-level `quitting` marker for the rest of this file.
+// ————————————————————————————————————————————————————————————————
+
+/** Synthetic E-PLAT-003 refusal — the harness's restore-failure fixture. */
+const RESTORE_FAILURE: Extract<OperationResult, { ok: false }> = {
+  ok: false,
+  error: {
+    code: 'E-PLAT-003',
+    title: 'System proxy could not be restored',
+    cause: 'Synthetic restore refusal — the harness injects it (M2-11 fixture).',
+    nextStep: 'Restore the proxy settings manually: SOCKS 127.0.0.1:10808 off.',
+  },
+};
+
+/** Synthetic crash snapshot — emitted through the captured `onStateChange`. */
+const CRASH_SNAPSHOT: StatusSnapshot = {
+  state: 'crashed',
+  lastError: {
+    code: 'E-CORE-001',
+    title: 'Core stopped unexpectedly',
+    cause: 'Synthetic crash — the harness emitted it through the captured seam.',
+    nextStep: 'Click Start to relaunch the core.',
+  },
+};
+
+/** The captured `app.on(<event>)` handler — the before-quit gate itself. */
+function appEventHandler(event: string): (...args: unknown[]) => void {
+  const entry = probe.appEvents.find((candidate) => candidate.event === event);
+  if (entry === undefined) {
+    throw new Error(`no app.on("${event}") handler captured from src/main/index.ts`);
+  }
+  return entry.handler;
+}
+
+describe('FR-35 fail-closed restore surfacing (M2-11, issue #19) — TC-04-20..23', () => {
+  /** Fires the captured supervisor `onStateChange` with the crash snapshot. */
+  function emitCrash(): void {
+    const options = probe.supervisorOptions;
+    expect(
+      options,
+      'harness precondition: core:start must have constructed the supervisor (crash seam)',
+    ).not.toBeNull();
+    options?.onStateChange(CRASH_SNAPSHOT);
+  }
+
+  it('crash.proxyRestoreFailure.surfacesPersistentWarning', async () => {
+    await settleQuietly();
+    // Auto-apply on start (AC-04.1) stores the snapshot — the "toggle On"
+    // precondition of FR-35's crash arm.
+    await invoke('core:start');
+    expect((await invoke<ProxyState>('proxy:get')).active, 'precondition: applied').toBe(true);
+
+    vi.mocked(restoreSystemProxy).mockResolvedValueOnce(RESTORE_FAILURE);
+    probe.events.length = 0;
+    emitCrash();
+    await flushAsync();
+
+    expect(
+      vi.mocked(restoreSystemProxy).mock.calls.length,
+      'FR-35 crash arm: a crash while applied must revert the system proxy ' +
+        '(errors.md §6 E-CORE-* automatic side effects)',
+    ).toBe(1);
+    expect(
+      vi.mocked(restoreSystemProxy).mock.calls[0]?.[1],
+      'the revert replays the stored snapshot (identity, AC-04.3)',
+    ).toBe(SNAPSHOT);
+    expect(
+      probe.dialogCalls.length,
+      'FR-35: a FAILED crash-arm revert must show the persistent E-PLAT-003 ' +
+        'warning — never a silent leftover (issue #19 item 2)',
+    ).toBe(1);
+    const warning = ((probe.dialogCalls[0] as unknown[] | undefined)?.[0] ?? {}) as Record<
+      string,
+      unknown
+    >;
+    expect(
+      warning,
+      'the warning carries the E-PLAT-003 triple (auto-apply dialog precedent)',
+    ).toMatchObject({
+      title: RESTORE_FAILURE.error.title,
+      message: RESTORE_FAILURE.error.cause,
+      detail: RESTORE_FAILURE.error.nextStep,
+    });
+  });
+
+  it('crash.proxyRestoreSuccess.clearsSnapshotWithoutWarning', async () => {
+    await settleQuietly();
+    await invoke('core:start');
+    emitCrash(); // restore default: {ok: true}
+    await flushAsync();
+
+    expect(
+      (await invoke<ProxyState>('proxy:get')).active,
+      'FR-35 crash arm: a successful revert clears the snapshot (proxy:get tells the truth)',
+    ).toBe(false);
+    expect(probe.dialogCalls.length, 'no warning when the revert succeeds').toBe(0);
+  });
+
+  it('stop.proxyRestoreFailure.surfacesPersistentWarning', async () => {
+    await settleQuietly();
+    await invoke('core:start');
+    vi.mocked(restoreSystemProxy).mockResolvedValueOnce(RESTORE_FAILURE);
+
+    const stopped = await invoke<OperationResult>('core:stop');
+    expect(
+      stopped.ok,
+      'AC-04.6 precedent: the stop result itself stays ok — the revert is a separate arm',
+    ).toBe(true);
+    expect(
+      probe.dialogCalls.length,
+      'FR-35 STOP arm: a failed revert must show the persistent E-PLAT-003 warning',
+    ).toBe(1);
+    expect(
+      (await invoke<ProxyState>('proxy:get')).active,
+      'a failed revert keeps proxy:get truthful (active:true — AC-04.7 contract)',
+    ).toBe(true);
+  });
+
+  it('quit.proxyRestoreFailure.surfacesWarningBeforeExit', async () => {
+    // LAST case on purpose: firing before-quit flips index.ts's module-level
+    // `quitting` marker for the rest of this file's module instance.
+    await settleQuietly();
+    await invoke('core:start');
+    vi.mocked(restoreSystemProxy).mockResolvedValueOnce(RESTORE_FAILURE);
+    probe.events.length = 0;
+    probe.dialogCalls.length = 0;
+
+    const event = { preventDefault: vi.fn() };
+    appEventHandler('before-quit')(event);
+    await flushAsync(20);
+
+    expect(
+      event.preventDefault,
+      'FR-42 gate: the first before-quit is cancelled synchronously',
+    ).toHaveBeenCalled();
+    expect(
+      probe.dialogCalls.length,
+      'FR-35 QUIT arm (issue #19 item 1): the failed revert shows the ' +
+        'pre-exit E-PLAT-003 warning — beginQuit must not swallow it silently',
+    ).toBe(1);
+    const dialogAt = probe.events.indexOf('messageBox');
+    const quitAt = probe.events.indexOf('quit');
+    expect(dialogAt, 'the warning must actually be raised').toBeGreaterThanOrEqual(0);
+    expect(
+      quitAt,
+      '...and the exit must still be requested (AC-05.5 exits fully)',
+    ).toBeGreaterThanOrEqual(0);
+    expect(dialogAt, 'PRE-exit dialog: warning raised BEFORE requestQuit').toBeLessThan(quitAt);
   });
 });

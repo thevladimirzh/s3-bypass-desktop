@@ -722,6 +722,10 @@ const windowLifecycle = createWindowLifecycle({
     // contract), now with the AC-04.7 revert on this route too.
     await runStopRoute(() => coreWiring.handleStop());
   },
+  // M2-11 / issue #19 (tray freshness advisory): the LIVE state the dispatcher
+  // re-validates `start`/`stop` against before forwarding. Provided here;
+  // the re-check itself lands in handleMenuAction with GREEN (own commit).
+  getLiveState: () => coreWiring.getStatus().state,
   requestQuit: (): void => {
     // Gate open BEFORE the quit request (see `teardownSettled` above).
     teardownSettled = true;
