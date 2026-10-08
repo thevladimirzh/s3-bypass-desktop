@@ -32,6 +32,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+
+      # M2-10 / strategy D-4 (board task; m2-test-plan §7): stage the
+      # PINNED core binary so tests/unit/core-supervisor-real.test.ts can
+      # spawn the REAL engine — the fake-core suites prove the mechanics,
+      # this suite proves the pinned binary boots the materialized T.
+      # prepare:core verifies every asset against core-pin.md (M2-04) and
+      # needs `unzip` (present on both runners). DV-53.
+      - run: npm run prepare:core
       - run: npm run lint
       - run: npm run format:check
       - run: npm run typecheck
@@ -69,6 +77,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+
+      # M2-10 / DV-53: the real-binary integration rows (§7) run under
+      # coverage too — the pinned binary must be staged first (same as
+      # the checks job above).
+      - run: npm run prepare:core
       - run: npm run test:coverage
 
   # M2-07 / docs/qa/e2e-ci-proposal.md rollout #1: the macOS leg first
