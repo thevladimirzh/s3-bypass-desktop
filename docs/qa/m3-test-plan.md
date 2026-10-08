@@ -121,6 +121,23 @@ committed so packaging runs without an extra generation step.
 
 ---
 
+## 5. i18n groundwork — single EN strings module (M3-08 RED / GREEN) — TC-POL-05
+
+| Pin                                           | What                                                                                                                                                                                                                                            | Suite                  | Status                                                 |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------ |
+| `strings.moduleExistsAndTSeamIsByteIdentical` | ABSENCE RED: `src/shared/strings.ts` exports `t(key)`; 18 exact rows byte-identical (5 status words, `hint.noProfile`/`hint.proxyNotRunning`, `action.start/stop`, 4 tray labels, 4 logs strings, tagline) + the parameterized AC-04.5 sentence | `strings-seam.test.ts` | RED-written (absence)                                  |
+| `strings.enMapCarriesNoRussianContent`        | BRIEF §3: no Cyrillic in any EN value (RU is backlog, never MVP content)                                                                                                                                                                        | `strings-seam.test.ts` | RED-written (absence)                                  |
+| `strings.consumersRenderThroughTheSeam`       | raw-text (comment-stripped): `App.tsx`/`LogsView.tsx`/`window-lifecycle.ts`/`status-labels.ts` import the seam, contain the `t('…')` keys and no longer hardcode the literals                                                                   | `strings-seam.test.ts` | RED-written                                            |
+| all existing wording pins                     | byte-identical output — e2e `Import a profile first`, TC-04-04, TC-05-04, TC-06-05, TC-POL-03 rows, FR-41 words                                                                                                                                 | existing suites        | observed GREEN in the RED batch (contract of the task) |
+
+Scope decisions (recorded in the RED, plan M3-08): identity strings stay out of the
+seam (the `S3 Bypass Desktop` h1/footer — BRIEF §9 productName, pinned by
+`builder-config`); the dev-only IPC line stays out (not translatable copy); error
+triples stay out (their wording is owned by `docs/analysis/errors.md` + main-process
+modules, batch A). Key namespace: `status.* hint.* action.* tray.* logs.* app.*`.
+
+---
+
 ## 10. Execution log (per batch)
 
 _Appended when a batch is written/observed — RED entry first, then GREEN, mirroring
@@ -254,6 +271,26 @@ results.)_
     `mac.icon`/`linux.icon` + the `build:icon` package script.
 - Result: **312 passed (312)** / 43 files — all 4 named REDs resolved.
   e2e: 1 passed (1).
+
+### M3-08 RED (i18n groundwork, 2026-10-09)
+
+- Chain: prettier `docs/ src/ tests/` clean, typecheck rc=0, eslint rc=0
+  (one RED fixup before this observation: `UNSUPPORTED_FORMAT` was declared
+  but the expected sentence was written inline — now the assertion derives
+  from the constant; and `/\p{Cyrillic}/u` → `/\p{Script=Cyrillic}/u`,
+  the only TS-recognized script-property spelling).
+- Suite: **3 failed | 312 passed (315)** — baseline 312 → +3 tests (the
+  whole TC-POL-05 describe), 1 file. The 3 observed REDs are the named
+  absence pins: `strings.moduleExistsAndTSeamIsByteIdentical` (module +
+  `t(key)` + 18 byte-identical rows + the parameterized AC-04.5 sentence),
+  `strings.enMapCarriesNoRussianContent` (BRIEF §3), and
+  `strings.consumersRenderThroughTheSeam` (all four consumers still
+  hardcode their literals — comment-stripped raw-text).
+- Observed GREEN in the RED batch: every EXISTING wording pin across the
+  e2e/supervisor/proxy/logs/status suites — the M3-08 contract is that the
+  seam re-exports exactly those strings, so nothing may move until GREEN.
+- e2e: not re-run for this RED (suite + docs only; unchanged at `e08d2e5`,
+  1/1).
 
 ---
 
