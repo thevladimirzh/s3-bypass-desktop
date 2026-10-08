@@ -332,6 +332,25 @@ hint.* action.* tray.* logs.* app.*`) + `t(key, params?)` with
   family there per DV-60 precedent; this §10 carries the M3 execution
   narrative).
 - e2e: not re-run (suite + docs only; unchanged at `25994d3`, 1/1).
+
+### M3-10 GREEN (darwin-x64 leg, 2026-10-09)
+
+- Chain: prettier `release.yml` + `docs/ src/ tests/` clean, typecheck
+  rc=0, eslint rc=0.
+- Implementation (release.yml only — the yml builder config untouched):
+  the mac matrix row gains `dist_args: --arm64 --x64` (one leg, both
+  arches, one `artifacts-macOS` upload — two rows would collide on the
+  `artifacts-${{ runner.os }}` name); a new mac-only step
+  `Verify both mac arch dmgs staged (issue #27)` runs `test $(ls
+release/*.dmg | wc -l) -ge 2` BETWEEN dist and the manifest — the
+  upload's `if-no-files-found: error` cannot see one arch silently
+  skipped next to a matching dmg, and the manifest is only written once
+  both exist. `core-bin/darwin-${arch}` (observed-GREEN row) resolves
+  the Intel core into the Intel dmg automatically.
+- Result: **316 passed (316)** / 44 files. e2e: 1 passed (1).
+- Validation tag run (M2-07 pattern): pushed after GREEN CI → observe
+  both `*-arm64.dmg` + `*-x64.dmg` + SHA256SUMS in the run → delete the
+  tag. Empirical outcome appended below when the run completes.
 - e2e: not re-run for this RED (suite + docs only; unchanged at `e08d2e5`,
   1/1).
 

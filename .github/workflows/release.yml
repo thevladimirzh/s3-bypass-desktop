@@ -33,7 +33,12 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            dist_args: ''
+            # issue #27 (M3 batch F): BOTH arches in one leg — arm64 (the
+            # M2 waived default) and x64 (Intel users had no artifact at
+            # all). electron-builder suffixes ${arch} into the dmg name, so
+            # release/*.dmg catches both; the verify step below fails the
+            # leg if either arch never staged.
+            dist_args: --arm64 --x64
             paths: |
               release/*.dmg
               release/SHA256SUMS.txt
@@ -66,6 +71,12 @@ jobs:
         # macOS, AppImage + deb on ubuntu — the rpm leg lives in the
         # build-rpm job below.
         run: npm run dist -- --publish never ${{ matrix.dist_args }}
+      # issue #27 (TC-PKG-21): one matching dmg would still upload fine —
+      # this assertion sees a silently skipped arch. Unquoted so word
+      # splitting strips wc's padding; no-match -> 0 -> the test fails.
+      - name: Verify both mac arch dmgs staged (issue #27)
+        if: runner.os == 'macOS'
+        run: test $(ls release/*.dmg | wc -l) -ge 2
       - name: SHA-256 manifest — written then re-verified (DoD #1)
         run: npm run release:manifest -- release
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
