@@ -135,6 +135,11 @@ vi.mock('electron', () => ({
     loadFile(): void {
       // test no-op: navigation is out of scope for this suite
     }
+
+    show(): void {
+      // test no-op: the launch-policy show() (FR-38 amended, issue #25) runs
+      // at module load and is out of scope for this suite
+    }
   },
   dialog: { showOpenDialog: vi.fn(async () => ({ canceled: true, filePaths: [] })) },
   ipcMain: {

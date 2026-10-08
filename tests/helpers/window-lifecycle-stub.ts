@@ -81,7 +81,7 @@ export interface WindowLifecycleDeps {
 
 /** The behavior surface the M1-22 suite pins (header contract of the test file). */
 export interface WindowLifecycle {
-  /** `false` — the app starts hidden to tray (BRIEF §2.5, FR-38). */
+  /** `true` — the main window shows on launch (FR-38 amended, issue #25). */
   shouldShowWindowOnLaunch(): boolean;
   /** Close-button verdict: `'hide'` while not quitting, `'close'` once quitting. */
   handleCloseRequest(): ClosePolicy;

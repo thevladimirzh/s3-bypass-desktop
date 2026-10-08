@@ -62,7 +62,7 @@ Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative chec
 2. **Start / Stop** — supervisor spawns/kills the core binary (dev-provided during M1; pinning is M2); local SOCKS inbound on `127.0.0.1:10808`.
 3. **Status** — `running / stopped / core-crashed` state machine with last error readable in UI.
 4. **System-proxy toggle** — macOS via `networksetup`, Linux via GNOME `gsettings`; honest "do it manually" hint elsewhere.
-5. **Tray** — starts hidden to tray; closing the window keeps the app running.
+5. **Tray** — the main window shows on launch (owner decision, issue #25); closing the window keeps the app running (close-to-tray).
 6. **Logs view** — bounded in-memory buffer; never secrets or full configs (redaction enforced).
 7. **Secret storage** — config + S3 keys encrypted at rest via Electron `safeStorage`; never sent to renderer, never plaintext on disk.
 8. Upstream artifacts: user stories (`docs/product/`), requirements/IPC contract (`docs/analysis/`), test strategy (`docs/qa/`).

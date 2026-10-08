@@ -10,8 +10,10 @@
  * reported as C-02), PR-09; docs/analysis/data-flows.md §2.1 step 9 (quit path
  * order), §2.3 (transition guards), §4.2 "Not IPC (main-internal)" (tray menu
  * actions + window show/hide never cross the bridge), §5 (quit ordering);
- * docs/product/stories/US-05-tray.md AC-05.1..AC-05.6; BRIEF §2 / PRD row 5
- * ("app starts hidden to tray"); docs/plans/m1-mvp.md M1-22 → M1-23;
+ * docs/product/stories/US-05-tray.md AC-05.1..AC-05.6; PRD row 5 ("the
+ * window shows on launch" — the original "app starts hidden to tray" was
+ * retired by owner decision issue #25, 2026-10-08, FR-38 amended);
+ * docs/plans/m1-mvp.md M1-22 → M1-23;
  * docs/qa/strategy.md §5.1 (RED reasons).
  *
  * Layer: L1 unit, PURE — no Electron, no tray, no BrowserWindow, no network
@@ -44,7 +46,7 @@
  *    requestQuit(): void            // LAST step: host runs app.quit()
  *
  *  WindowLifecycle:
- *    shouldShowWindowOnLaunch(): boolean        // always false — hidden to tray
+ *    shouldShowWindowOnLaunch(): boolean        // always true — the window shows on launch (issue #25)
  *    handleCloseRequest(): 'hide' | 'close'     // 'hide' unless isQuitting()
  *    handleBeforeQuit(): Promise<void>          // stopCore → restoreProxy →
  *                                    // requestQuit, in order, awaited;

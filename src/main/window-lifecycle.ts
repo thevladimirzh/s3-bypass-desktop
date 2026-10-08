@@ -93,7 +93,7 @@ export interface WindowLifecycleDeps {
 
 /** The behavior surface the M1-22 suite pins (header contract of the test file). */
 export interface WindowLifecycle {
-  /** `false` — the app starts hidden to tray at EVERY launch (BRIEF §2.5, FR-38). */
+  /** `true` — the main window shows on launch (FR-38 amended, issue #25). */
   shouldShowWindowOnLaunch(): boolean;
   /** Close-button verdict: `'hide'` while not quitting, `'close'` once quitting (FR-39). */
   handleCloseRequest(): ClosePolicy;
@@ -197,9 +197,11 @@ export function createWindowLifecycle(deps: WindowLifecycleDeps): WindowLifecycl
   };
 
   return {
-    // FR-38: hidden to tray on every launch — the first show is deferred to
-    // tray "Open" (FR-40); nothing runs at construction time.
-    shouldShowWindowOnLaunch: () => false,
+    // FR-38 (amended, owner decision issue #25, 2026-10-08): the main window
+    // shows on launch — index.ts consults this policy right after creating
+    // the (hidden) window and performs the show; nothing runs at construction
+    // time, and tray "Open" (FR-40) still re-shows/focuses on demand.
+    shouldShowWindowOnLaunch: () => true,
 
     // FR-39 / AC-05.2: while NOT quitting, a close request HIDES the window
     // (PR-03 close-to-tray); once quitting it must really close so the app can

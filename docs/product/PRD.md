@@ -58,7 +58,7 @@ The 7 MVP items from `BRIEF.md §2`. Each maps to exactly one user story.
 | 2   | Start / Stop        | US-02 | Spawn/kill the bundled per-platform core binary; local SOCKS inbound on `127.0.0.1:10808`.                                    |
 | 3   | Status              | US-03 | `running` / `stopped` / `core-crashed` state always visible; last error readable.                                             |
 | 4   | System-proxy toggle | US-04 | macOS via `networksetup`, Linux via GNOME `gsettings`; unsupported desktop → honest "do it manually" hint.                    |
-| 5   | Tray                | US-05 | App starts hidden to tray; closing the window keeps it running.                                                               |
+| 5   | Tray                | US-05 | The main window shows on launch (owner decision, issue #25); closing the window keeps it running.                             |
 | 6   | Logs view           | US-06 | Bounded in-memory buffer; never secrets or full configs.                                                                      |
 | 7   | Secret storage      | US-07 | Config and S3 keys at rest encrypted via OS keychain (`safeStorage`); never sent to the renderer; never written in plaintext. |
 

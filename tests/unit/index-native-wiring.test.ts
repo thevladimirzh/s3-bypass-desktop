@@ -97,7 +97,9 @@
  * `shouldShowWindowOnLaunch()` call-site in index.ts, and no launch-time
  * `show` event while the policy answers `false` (hidden at EVERY launch —
  * DV-27(3); Q-C stays open but the unconditional BRIEF §2.5/FR-38 wording
- * governs). Items (1) and (2) are RESOLVED by the owner (Q1 auto-on-start, Q2
+ * governs). AMENDED 2026-10-08 (owner decision issue #25, FR-38 rewritten):
+ * the policy now answers `true` and the launch path MUST `show()` the
+ * window right after the consult — see the TC-05-23 case below. Items (1) and (2) are RESOLVED by the owner (Q1 auto-on-start, Q2
  * SOCKS-only — acceptance §8) and pin with the proxy batch:
  * tests/unit/proxy-wiring.test.ts (TC-04-16..19, issue #14/#5 S4-4). Nothing
  * in the contract above is weakened: every M1-23b case stays as written.
@@ -383,7 +385,13 @@ beforeEach(() => {
   probe.quitCount = 0;
   probe.timeline.length = 0;
   for (const windowRecord of probe.windows) {
+    // The launch-time `show` (FR-38 amended, issue #25: the policy answers
+    // true at every launch, TC-05-23) is a ONE-SHOT module-load side effect —
+    // it is preserved across the per-test wipe so the launch pin can observe
+    // it; every per-test side effect (close/hide, …) still resets here.
+    const launchShown = windowRecord.events.includes('show');
     windowRecord.events.length = 0;
+    if (launchShown) windowRecord.events.push('show');
   }
   vi.mocked(restoreSystemProxy)
     .mockClear()

@@ -8,9 +8,9 @@
  *
  * Test plan IDs: TC-04-16, TC-04-17, TC-04-19 (§4 US-04) —
  * docs/qa/m1-test-plan.md, allocated in §14 DV-35. The renderer half
- * (TC-04-18) lives in tests/unit/proxy-toggle.test.tsx; the launch-hidden
- * native half (TC-05-23, blocker B-02 / issue #15) lives in
- * tests/unit/index-native-wiring.test.ts.
+ * (TC-04-18) lives in tests/unit/proxy-toggle.test.tsx; the
+ * launch-shows-window native half (TC-05-23, blocker B-02 / issue #15,
+ * amended by issue #25) lives in tests/unit/index-native-wiring.test.ts.
  *
  * Spec sources: docs/product/stories/US-04-system-proxy.md as amended
  * 2026-10-08 (AC-04.1 auto-on-start + toggle override, AC-04.2 desktopEnv,

@@ -186,15 +186,15 @@ Validation runs at **import time** (F1) and the critical subset re-runs at **sta
 
 ## 6. Feature F6 — Tray (US-05 / BRIEF §2.5)
 
-| ID    | Requirement                                                                                                                                  | Source                                         |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| FR-38 | App is reachable from the tray within **3 s** of launch; app starts hidden to tray; no network calls on startup.                             | `[US-05 AC-05.1]` `[BRIEF §2.5]` `[PRD NFR-3]` |
-| FR-39 | Closing the window hides it; process stays alive; a running core keeps running.                                                              | `[US-05 AC-05.2]`                              |
-| FR-40 | Tray "Open" restores the window in its last known state with correct, non-stale status.                                                      | `[US-05 AC-05.3]`                              |
-| FR-41 | Tray menu always contains, as **text**: status (`Running` / `Stopped` / `Core crashed`) plus items **Show window, Start/Stop tunnel, Quit**. | `[US-05 AC-05.4]` `[PRD NFR-5]`                |
-| FR-42 | Tray "Quit" → stop core → revert proxy → delete materialized config → full app exit; no background process remains.                          | `[US-05 AC-05.5]`                              |
-| FR-43 | A core crash updates tray text+icon without the window open.                                                                                 | `[US-05 AC-05.6]`                              |
-| FR-44 | Single-instance lock: a second launch focuses the existing window `[ASSUMPTION]` (proposed in US-05, pending Q-C).                           | `[US-05 edge]`                                 |
+| ID    | Requirement                                                                                                                                        | Source                                         |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| FR-38 | App is reachable from the tray within **3 s** of launch; the main window shows on launch (owner decision, issue #25); no network calls on startup. | `[US-05 AC-05.1]` `[BRIEF §2.5]` `[PRD NFR-3]` |
+| FR-39 | Closing the window hides it; process stays alive; a running core keeps running.                                                                    | `[US-05 AC-05.2]`                              |
+| FR-40 | Tray "Open" restores the window in its last known state with correct, non-stale status.                                                            | `[US-05 AC-05.3]`                              |
+| FR-41 | Tray menu always contains, as **text**: status (`Running` / `Stopped` / `Core crashed`) plus items **Show window, Start/Stop tunnel, Quit**.       | `[US-05 AC-05.4]` `[PRD NFR-5]`                |
+| FR-42 | Tray "Quit" → stop core → revert proxy → delete materialized config → full app exit; no background process remains.                                | `[US-05 AC-05.5]`                              |
+| FR-43 | A core crash updates tray text+icon without the window open.                                                                                       | `[US-05 AC-05.6]`                              |
+| FR-44 | Single-instance lock: a second launch focuses the existing window `[ASSUMPTION]` (proposed in US-05, pending Q-C).                                 | `[US-05 edge]`                                 |
 
 ---
 
@@ -397,7 +397,7 @@ QA test IDs do not exist yet (`docs/qa/` is written in M1-03, _after_ this docum
 - **Q-10** who bumps the core version/SHA pin (PRD) — affects FR-14/NFR-6 (documented here later per PRD).
 - **Q-A** (US-01) profile list? editing? credentials embedded in JSON vs entered in-app — affects FR-07/A-01 and whether `accessKey/secretKey` absence is fatal (BR-V-06).
 - **Q-B** (US-04) macOS multi-service selection; snapshot vs live tracking — affects FR-37.
-- **Q-C** (US-05) hidden-to-tray every launch vs first run; single-instance; crash icon set — affects FR-38/FR-44/PR-09.
+- **Q-C** (US-05) RESOLVED 2026-10-08 (issue #25): hidden-to-tray every launch vs first run → the main window shows on launch (FR-38 amended); still open: single-instance; crash icon set — affects FR-38/FR-44/PR-09.
 
 ### Raised by this analysis (owner/devops input)
 

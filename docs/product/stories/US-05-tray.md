@@ -41,10 +41,13 @@ the key actions: Show window, Start/Stop tunnel, Quit.
 - Second app instance launched while one runs → single-instance lock; focus
   the existing window (proposed, Q-C).
 - OS session end while window closed → no hung child process (QA checks).
-- Launch behavior: hidden-to-tray on every launch vs. first run only (Q-C).
+- Launch behavior: the main window shows on launch (owner decision, issue
+  #25 — the hidden-to-tray half of Q-C is resolved); closing the window
+  hides it to tray (FR-39).
 
 ## Open questions
 
-- **Q-C (links BRIEF "starts hidden to tray"):** confirm hidden-to-tray on
-  every launch vs. first-run only; confirm single-instance lock (proposed:
-  yes); tray icon set for `core-crashed`.
+- **Q-C:** RESOLVED 2026-10-08 (issue #25) — the main window shows on
+  launch (the original BRIEF "starts hidden to tray" is retired); still
+  open: single-instance lock (proposed: yes); tray icon set for
+  `core-crashed`.

@@ -1112,11 +1112,13 @@ app.whenReady().then(() => {
   createTray();
   syncTray(coreWiring.getStatus().state);
 
-  // M1-27b (D-02, blocker B-02, issue #15): launch consults the pinned
-  // lifecycle policy instead of the constructor default —
-  // `shouldShowWindowOnLaunch()` answers false for every launch (GREEN since
-  // M1-22 TC-05-14, DV-27(3)), so the first show belongs to tray "Show
-  // window" (FR-40/AC-05.3). The window itself was created hidden above.
+  // M1-27b (D-02, blocker B-02, issue #15), AMENDED by owner decision
+  // issue #25 (2026-10-08): launch consults the pinned lifecycle policy
+  // instead of the constructor default — `shouldShowWindowOnLaunch()`
+  // answers true for every launch (FR-38 amended: the window shows on
+  // launch; GREEN TC-05-14), so the launch path performs the show right
+  // here. The window itself was created hidden above; tray "Open"
+  // (FR-40/AC-05.3) still re-shows/focuses on demand.
   const launchWindow = createWindow();
   if (windowLifecycle.shouldShowWindowOnLaunch()) {
     launchWindow.show();
