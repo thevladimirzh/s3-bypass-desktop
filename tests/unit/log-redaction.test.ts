@@ -42,6 +42,23 @@
  *  |                                      |                                              | redaction (marker ≤ 32 chars,   | unspecified — DV-25)          |
  *  |                                      |                                              | DV-25)                          |                               |
  *
+ *  AMENDED 2026-10-08 (issue #24, owner decision, DV-63): the whole-line
+ *  reading above now applies ONLY to document-mode lines, stack frames and
+ *  SELF-CLOSED single-line JSON documents (a `{…}` line — §8.4 SECRET as a
+ *  whole). Everything else is TOKEN-level: every masked unit becomes
+ *  `[REDACTED:<class>]` (class = the rule that fired — accessKey, secretKey,
+ *  sessionToken, bucketPassword, password, cookie, clientSecret, privateKey,
+ *  signing, config, awsKey, jwt, run, path, endpoint, region, Error, or an
+ *  INTERNAL context field name: bucket/prefix/sessionsDir/…), scaffolding
+ *  (verbs, timings, status codes, host:port) is preserved. Name rules mask
+ *  the matched TOKEN (never a cut fragment — a canary like
+ *  `EXAMPLEACCESSKEYID01` goes whole) plus the adjacent value token; the
+ *  configured INTERNAL values from the imported profile ride in via the
+ *  collector's `redactionContext` option / `setRedactionContext` (exact
+ *  occurrence → its field-name marker). `Error:`/`XxxError:` masks
+ *  everything from the class token to end-of-line. Contract tests:
+ *  TC-06-26 (realistic core lines) and the amended pins below.
+ *
  *  Redaction ORDER is asserted, not just absence: the stored buffer, the
  *  `push()` return, and every subscriber payload are grepped for canaries —
  *  zero hits — and `[REDACTED]` must be PRESENT where the secret line was
@@ -58,6 +75,8 @@
  * skip, or delete.
  * ─────────────────────────────────────────────────────────────────────────────
  */
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LogLine } from '../../src/shared/ipc';
@@ -66,8 +85,10 @@ import {
   canaryConfigPath,
   createCollector,
   decodedLines,
+  loadLogCollector,
   type LogCollector,
   pushAll,
+  type RedactionContext,
   runFakeCoreMode,
 } from '../helpers/log-collector-stub';
 import { readCanaries, readCanaryConfig } from '../helpers/secret-store-stub';
@@ -131,37 +152,63 @@ describe('log redaction — the single entry point (FR-47, NFR-2, §8.4)', () =>
         stream: 'stdout',
         text: `core: upsert to ${canary} completed`,
       });
-      expect(viaStdout.text, `FR-47: stdout line containing "${canary}" → ${REDACTED}`).toBe(
-        REDACTED,
-      );
+      expect(
+        viaStdout.text,
+        'issue #24/DV-63: the canary TOKEN is masked with a class marker — ' +
+          'scaffolding (upsert/completed) survives for diagnosis',
+      ).toMatch(/^core: upsert to \[REDACTED:[a-zA-Z]+\] completed$/);
+      expect(viaStdout.text, 'NFR-2: the canary value never survives').not.toContain(canary);
 
+      // A bare credential keyword in PROSE has no adjacent value to pin —
+      // fail-closed: the name token AND the token right after it are masked.
       const viaStderr = collector.push({
         stream: 'stderr',
         text: `core: signature for ${canary} rejected`,
       });
-      expect(viaStderr.text, `FR-47: stderr line containing "${canary}" → ${REDACTED}`).toBe(
-        REDACTED,
+      expect(
+        viaStderr.text,
+        'issue #24/DV-63: prose credential keyword → name + next token masked ' +
+          '(fail-closed), the trailing signal word kept',
+      ).toMatch(
+        /^core: \[REDACTED:[a-zA-Z]+\] \[REDACTED:[a-zA-Z]+\] \[REDACTED:[a-zA-Z]+\] rejected$/,
       );
+      expect(viaStderr.text, 'NFR-2: the canary value never survives').not.toContain(canary);
 
       const viaApp = collector.pushApp({ text: `app: stored key ${canary} in memory` });
-      expect(viaApp.text, `FR-47: app-event line containing "${canary}" → ${REDACTED}`).toBe(
-        REDACTED,
-      );
+      expect(
+        viaApp.text,
+        'issue #24/DV-63: app-event line — canary token masked, scaffolding kept',
+      ).toMatch(/^app: stored key \[REDACTED:[a-zA-Z]+\] in memory$/);
+      expect(viaApp.text, 'NFR-2: the canary value never survives').not.toContain(canary);
     }
 
     // Quoted config secret keys (strategy §7.5 forbidden-pattern list): the
-    // key+value form is a secret even when the value is not a canary.
-    for (const keyLine of [
-      'storage write ok {"accessKey": "whatever"}',
-      'storage write ok {"secretKey": "whatever"}',
-      'auth ok {"sessionToken": "whatever"}',
-      'auth ok {"bucketPassword": "whatever"}',
-    ]) {
-      const stored = collector.push({ stream: 'stdout', text: keyLine });
+    // key NAME itself never survives (a line carrying it is config echo) and
+    // the value goes with it — both halves masked with the class marker.
+    for (const [input, expected] of [
+      [
+        'storage write ok {"accessKey": "whatever"}',
+        'storage write ok {"[REDACTED:accessKey]": "[REDACTED:accessKey]"}',
+      ],
+      [
+        'storage write ok {"secretKey": "whatever"}',
+        'storage write ok {"[REDACTED:secretKey]": "[REDACTED:secretKey]"}',
+      ],
+      [
+        'auth ok {"sessionToken": "whatever"}',
+        'auth ok {"[REDACTED:sessionToken]": "[REDACTED:sessionToken]"}',
+      ],
+      [
+        'auth ok {"bucketPassword": "whatever"}',
+        'auth ok {"[REDACTED:bucketPassword]": "[REDACTED:bucketPassword]"}',
+      ],
+    ] as const) {
+      const stored = collector.push({ stream: 'stdout', text: input });
       expect(
         stored.text,
-        `§8.4 SECRET: a line carrying a quoted config secret key → ${REDACTED}`,
-      ).toBe(REDACTED);
+        '§8.4 SECRET (issue #24/DV-63): the quoted secret key name AND its value ' +
+          'are both masked — the strategy §7.5 forbidden key name never survives',
+      ).toBe(expected);
     }
 
     expectRedactedDump(bufferDump(collector), 'TC-06-03');
@@ -191,7 +238,11 @@ describe('log redaction — the single entry point (FR-47, NFR-2, §8.4)', () =>
       'the subscriber is notified exactly once for the pushed line',
     ).toHaveBeenCalledTimes(1);
     expect(received[0], 'the subscriber receives the STORED line').toEqual(view.lines[0]);
-    expect(returned.text, 'FR-47: redaction happened before the buffer write').toBe(REDACTED);
+    expect(
+      returned.text,
+      'issue #24/DV-63: redaction happened before the buffer write — every canary ' +
+        'TOKEN is masked, the scaffolding survives',
+    ).toMatch(/^core: all keys (\[REDACTED:[a-zA-Z]+\], ){3}\[REDACTED:[a-zA-Z]+\] rotated$/);
 
     const everything = JSON.stringify({ returned, view, received });
     expectRedactedDump(everything, 'TC-06-03 before-store/notify');
@@ -231,16 +282,27 @@ describe('log redaction — classification beyond the canaries (§8.4, A-15)', (
     const values = internalValues();
     expect(values.length, 'fixture sanity: 5 INTERNAL fields in the config').toBe(5);
 
-    const collector = await createCollector({ maxLines: 40 });
+    // issue #24/DV-63: the INTERNAL class rides in as the collector's
+    // redactionContext — the exact configured value, wherever it appears,
+    // becomes its FIELD-NAME marker; the scaffolding survives for diagnosis.
+    const collector = await createCollector({
+      maxLines: 40,
+      redactionContext: Object.fromEntries(
+        values.map(({ field, value }) => [field, value]),
+      ) as RedactionContext,
+    });
     for (const { field, value } of values) {
       const viaCore = collector.push({ stream: 'stdout', text: `core: synced ${value} ok` });
       expect(
         viaCore.text,
-        `§8.4 INTERNAL (${field}): a line containing "${value}" → ${REDACTED} in logs`,
-      ).toBe(REDACTED);
+        `issue #24: §8.4 INTERNAL (${field}) — the configured value becomes ` +
+          `[REDACTED:${field}], the "synced … ok" scaffolding survives`,
+      ).toBe(`core: synced [REDACTED:${field}] ok`);
 
       const viaApp = collector.pushApp({ text: `app: checked ${value} against policy` });
-      expect(viaApp.text, `§8.4 INTERNAL (${field}) applies to app events too`).toBe(REDACTED);
+      expect(viaApp.text, `issue #24: §8.4 INTERNAL (${field}) applies to app events too`).toBe(
+        `app: checked [REDACTED:${field}] against policy`,
+      );
     }
     expectRedactedDump(bufferDump(collector), 'TC-06-19');
   });
@@ -406,5 +468,162 @@ describe('log redaction — import path & full-loop greps (AC-01.6, TC-NFR2-01)'
     collector.push({ stream: 'stderr', text: `core: denied for ${CANARIES[0] ?? ''}` });
 
     expectRedactedDump(JSON.stringify(collector.get()), 'TC-NFR2-01 (a)');
+  });
+});
+
+describe('log redaction — realistic core lines (issue #24, DV-63) — TC-06-26', () => {
+  it('logs.redaction.realisticCoreLinesKeepSignalMaskClasses', async () => {
+    // TC-06-26 — issue #24: the Logs-panel symptom (119/119 [REDACTED] with
+    // a real profile). Whole-line redaction (DV-25) died on ANY slash, on
+    // the bare bucket/session words, on Error:. Lines (a)-(b) are REAL boot
+    // output captured 2026-10-08 from the pinned core
+    // (core-bin/darwin-arm64/xray + valid-client-config.json); (c)-(e) are
+    // the operational shapes the issue names (poll/accept/upload). Hybrid
+    // contract (owner decision 2026-10-08, DV-63): token-level masks with
+    // `[REDACTED:<class>]` markers, configured INTERNAL values via the
+    // collector's redactionContext (replaced BEFORE the shape rules), whole
+    // line only for document mode / stack frames / self-closed JSON.
+    const collector = await createCollector({
+      maxLines: 40,
+      redactionContext: {
+        endpoint: 'https://s3.example.com',
+        bucket: 'example-bucket',
+        prefix: 'profiles/vlt-alpha',
+        sessionsDir: 'sessions',
+        region: 'us-east-1',
+      },
+    });
+
+    // (a) THE issue symptom: the listen line died on the logger name's
+    // slashes. host:port is PUBLIC (§8.4); digit-first segments (dates) are
+    // exempt from the path rule so timestamps keep passing.
+    expect(
+      collector.push({
+        stream: 'stdout',
+        text: '2026/10/08 22:12:14.274565 [Info] transport/internet/tcp: listening TCP on 127.0.0.1:10808',
+      }).text,
+      'issue #24: the listen signal SURVIVES — logger-name paths masked, host:port intact',
+    ).toBe('2026/10/08 22:12:14.274565 [Info] [REDACTED:path]: listening TCP on 127.0.0.1:10808');
+
+    // (b) config-read line: prefix scaffolding survives, the file path masks.
+    expect(
+      collector.push({
+        stream: 'stdout',
+        text: '2026/10/08 22:12:14.272956 [Info] infra/conf/serial: Reading config: &{Name:tests/fixtures/configs/valid-client-config.json Format:json}',
+      }).text,
+      'issue #24: "Reading config" stays (diagnosis), the config file path is masked',
+    ).toBe(
+      '2026/10/08 22:12:14.272956 [Info] [REDACTED:path]: Reading config: &{Name:[REDACTED:path] Format:json}',
+    );
+
+    // (c) PUBLIC status lines pass byte-for-byte (AC-06.1).
+    expect(
+      collector.push({
+        stream: 'stdout',
+        text: '2026/10/08 22:12:14.274591 [Warning] core: Xray 26.9.9 started',
+      }).text,
+      'a PUBLIC boot line stays visible byte-for-byte',
+    ).toBe('2026/10/08 22:12:14.274591 [Warning] core: Xray 26.9.9 started');
+
+    // (d) the issue's operational shapes: accept + poll scaffolding survives
+    // (bare "session" is no longer a rule — the configured sessionsDir value
+    // is what masks, via the context / exact value).
+    expect(
+      collector.push({
+        stream: 'stdout',
+        text: '2026/10/08 22:13:01.101010 [Info] proxy/socks: session accepted: 127.0.0.1:52344',
+      }).text,
+      'issue #24: "session accepted" is SIGNAL — logger path masked, the rest intact',
+    ).toBe('2026/10/08 22:13:01.101010 [Info] [REDACTED:path]: session accepted: 127.0.0.1:52344');
+    expect(
+      collector.push({
+        stream: 'stdout',
+        text: '2026/10/08 22:15:00.000000 [Info] core: poll cycle done in 18 ms (0 pending)',
+      }).text,
+      'issue #24: operational scaffolding (poll, timings) passes verbatim',
+    ).toBe('2026/10/08 22:15:00.000000 [Info] core: poll cycle done in 18 ms (0 pending)');
+
+    // (e) upload: the configured INTERNAL values become their FIELD markers
+    // (context runs BEFORE the shape rules — prefix wins over path), while
+    // the verb and the timing survive for diagnosis.
+    expect(
+      collector.push({
+        stream: 'stdout',
+        text: '2026/10/08 22:14:00.000000 [Info] storage/s3: upload profiles/vlt-alpha/obj-1 to example-bucket via https://s3.example.com in 412 ms',
+      }).text,
+      'issue #24: configured INTERNAL values → field markers, upload/timing survive',
+    ).toBe(
+      '2026/10/08 22:14:00.000000 [Info] [REDACTED:path]: upload [REDACTED:prefix]/obj-1 to [REDACTED:bucket] via [REDACTED:endpoint] in 412 ms',
+    );
+
+    // (f) Error: — everything from the class token to EOL is masked
+    // (errors.md §0: no exception message), the prefix scaffolding stays.
+    expect(
+      collector.push({
+        stream: 'stdout',
+        text: '2026/10/08 22:16:00.000000 [Info] core: dial failed: Error: xray: dial tcp 10.0.0.5:443: i/o timeout',
+      }).text,
+      'errors.md §0 / issue #24: from the Error: class token to EOL masked, prefix kept',
+    ).toBe('2026/10/08 22:16:00.000000 [Info] core: dial failed: [REDACTED:Error]');
+
+    // (g) stack frames stay whole-line (errors.md §0 — FR-48).
+    expect(
+      collector.push({
+        stream: 'stderr',
+        text: '    at parseProfile (/app/src/main/profile-validator.ts:42:11)',
+      }).text,
+      'errors.md §0: a stack frame is still the ENTIRE line replaced',
+    ).toBe(REDACTED);
+
+    // (h) extraction: the §8.4 INTERNAL fields come from the parsed config
+    // document — and ONLY those (SECRET credential fields are excluded).
+    const api = await loadLogCollector();
+    expect(
+      api.redactionContextFromConfig({
+        outbounds: [
+          {
+            settings: {
+              storage: {
+                bucket: 'b-1',
+                endpoint: 'https://e.example',
+                region: 'eu-central-1',
+                prefix: 'p/x',
+                sessionsDir: 'sessions',
+                accessKey: 'SKIPME',
+              },
+            },
+          },
+        ],
+      }),
+      'issue #24: the 5 §8.4 INTERNAL fields extracted, SECRET credential fields excluded',
+    ).toEqual({
+      bucket: 'b-1',
+      endpoint: 'https://e.example',
+      region: 'eu-central-1',
+      prefix: 'p/x',
+      sessionsDir: 'sessions',
+    });
+    expect(
+      api.redactionContextFromConfig(null),
+      'tolerant: a non-document yields an empty context (never throws)',
+    ).toEqual({});
+
+    // (i) wiring: index.ts extracts the context from the stored profile at
+    // startup and refreshes it after every (re-)import — fail-closed, the
+    // context is never cleared (removal does not un-redact).
+    const indexSource = readFileSync(new URL('../../src/main/index.ts', import.meta.url), 'utf8');
+    expect(
+      /redactionContextFromConfig\(/.test(indexSource),
+      'wiring: index.ts builds the redaction context from the stored profile',
+    ).toBe(true);
+    expect(
+      /setRedactionContext\(/.test(indexSource),
+      'wiring: index.ts hands it to the long-lived log collector',
+    ).toBe(true);
+    const refreshCalls = (indexSource.match(/refreshRedactionContext\(\)/g) ?? []).length;
+    expect(
+      refreshCalls,
+      'wiring: refreshed at startup AND after every (re-)import (fail-closed)',
+    ).toBeGreaterThanOrEqual(2);
   });
 });

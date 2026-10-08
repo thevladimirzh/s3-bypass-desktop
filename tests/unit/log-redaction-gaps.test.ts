@@ -65,6 +65,15 @@
  *  matching, and the canary rules stay GREEN in log-redaction.test.ts
  *  (S5-6 "Verified OK" list).
  *
+ *  AMENDED 2026-10-08 (issue #24, owner decision, DV-63): whole-line
+ *  replacement now applies ONLY to document-mode lines, stack frames and
+ *  self-closed single-line JSON documents. The gap pins above (TC-06-20/21/
+ *  22) were rewritten to TOKEN-level masks with `[REDACTED:<class>]`
+ *  markers — credential key names, nameless value shapes and their values
+ *  are masked as whole tokens (never cut fragments), while JSON scaffolding
+ *  (indent, quotes, colon, comma) and PUBLIC controls keep passing
+ *  byte-for-byte. TC-06-23 document-mode pins stay whole-line verbatim.
+ *
  * RED status: ASSERTION RED — the module is GREEN since M1-19; every input
  * above matches none of today's eight rules (walked in the report §2/§3),
  * so the discriminating first assertion of each `it` finds the raw line.
@@ -91,27 +100,39 @@ describe('log redaction — generic credential fields (S5-6 gap 1, issue #12)', 
     // privateKey, cookie. Lines start with `"` (not `{`) so ONLY the key
     // rule can be what catches them — no document-mode help.
     const collector = await createCollector({ maxLines: 50 });
-    const gaps = [
-      '  "password": "hunter2",',
-      '  "pass": "letmein42",',
-      '  "clientSecret": "s3cr3tvalue",',
-      '  "privateKey": "MIIEvQIBADANBg",',
-      '  "cookie": "uid=42",',
+    // issue #24/DV-63 (AMENDED pins): token-level markers — the credential
+    // key NAME and its value are both masked with the class marker (the
+    // strategy §7.5 forbidden key name never survives), the JSON scaffolding
+    // (indent, quotes, colon, comma) is preserved for diagnosis.
+    const gaps: ReadonlyArray<readonly [input: string, expected: string]> = [
+      ['  "password": "hunter2",', '  "[REDACTED:password]": "[REDACTED:password]",'],
+      ['  "pass": "letmein42",', '  "[REDACTED:password]": "[REDACTED:password]",'],
+      [
+        '  "clientSecret": "s3cr3tvalue",',
+        '  "[REDACTED:clientSecret]": "[REDACTED:clientSecret]",',
+      ],
+      ['  "privateKey": "MIIEvQIBADANBg",', '  "[REDACTED:privateKey]": "[REDACTED:privateKey]",'],
+      ['  "cookie": "uid=42",', '  "[REDACTED:cookie]": "[REDACTED:cookie]",'],
     ];
-    pushAll(collector, gaps);
+    pushAll(
+      collector,
+      gaps.map(([input]) => input),
+    );
     const stored = storedTexts(collector);
 
-    const leaked: string[] = [];
-    gaps.forEach((input, index) => {
-      if (stored[index] !== REDACTED)
-        leaked.push(`${input} → stored as ${JSON.stringify(stored[index])}`);
+    const mismatched: string[] = [];
+    gaps.forEach(([input, expected], index) => {
+      if (stored[index] !== expected)
+        mismatched.push(
+          `${input} → stored as ${JSON.stringify(stored[index])}, expected ${expected}`,
+        );
     });
     expect(
-      leaked,
-      'S5-6/TC-06-20 (issue #12): generic credential key lines must be replaced with ' +
-        `${REDACTED} at the single entry point (FR-47/PRD NFR-2 — BRIEF §2.6 P0: a ` +
-        'credential value never reaches the buffer/renderer/clipboard). These key names ' +
-        "match none of today's four denylist names, so they pass through unredacted:",
+      mismatched,
+      'S5-6/TC-06-20 (issue #12, AMENDED issue #24/DV-63): generic credential key lines ' +
+        'must land as class-marked TOKEN masks at the single entry point (FR-47/PRD NFR-2 — ' +
+        'BRIEF §2.6 P0: a credential name/value never reaches buffer/renderer/clipboard), ' +
+        'with the JSON scaffolding kept:',
     ).toEqual([]);
 
     // Control: a NON-secret quoted key must survive the fix — redacting all
@@ -133,25 +154,33 @@ describe('log redaction — nameless secret value shapes (S5-6 gap 2, issue #12)
     // no field name, no separators, no "/" (report fix value shapes:
     // AKIA[0-9A-Z]{16}, JWT, long base64/hex).
     const collector = await createCollector({ maxLines: 50 });
-    const gaps = [
-      'AKIAIOSFODNN7EXAMPLE',
-      'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.c2lnbmF0dXJl',
-      'a1b2c3d4'.repeat(8),
+    // issue #24/DV-63 (AMENDED pins): each nameless shape masks its WHOLE
+    // token with the class marker of the rule that fired.
+    const gaps: ReadonlyArray<readonly [input: string, expected: string]> = [
+      ['AKIAIOSFODNN7EXAMPLE', '[REDACTED:awsKey]'],
+      ['eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiJ9.c2lnbmF0dXJl', '[REDACTED:jwt]'],
+      ['a1b2c3d4'.repeat(8), '[REDACTED:run]'],
     ];
-    pushAll(collector, gaps);
+    pushAll(
+      collector,
+      gaps.map(([input]) => input),
+    );
     const stored = storedTexts(collector);
 
-    const leaked: string[] = [];
-    gaps.forEach((input, index) => {
-      if (stored[index] !== REDACTED)
-        leaked.push(`${input.slice(0, 24)}… → stored as ${JSON.stringify(stored[index])}`);
+    const mismatched: string[] = [];
+    gaps.forEach(([input, expected], index) => {
+      if (stored[index] !== expected)
+        mismatched.push(
+          `${input.slice(0, 24)}… → stored as ${JSON.stringify(stored[index])}, expected ${expected}`,
+        );
     });
     expect(
-      leaked,
-      'S5-6/TC-06-21 (issue #12): a nameless secret shape (AKIA-style id, JWT, 64-hex) ' +
-        `must be replaced with ${REDACTED} — a bare value with no field name matches none ` +
-        "of today's rules and would land verbatim in the buffer, the renderer, and the " +
-        '"Copy logs" clipboard (FR-47/PRD NFR-2):',
+      mismatched,
+      'S5-6/TC-06-21 (issue #12, AMENDED issue #24/DV-63): a nameless secret shape ' +
+        '(AKIA-style id, JWT, 64-hex) must land as its class-marked whole-token mask — ' +
+        'a bare value with no field name matches none of the name rules and would land ' +
+        'verbatim in the buffer, the renderer, and the "Copy logs" clipboard ' +
+        '(FR-47/PRD NFR-2):',
     ).toEqual([]);
 
     // Control: a PUBLIC line keeps passing (AC-06.1 diagnosis value).
@@ -173,25 +202,32 @@ describe('log redaction — separator/case variants of the key names (S5-6 gap 3
     // [-_\s.]+ (DV-32). The single-separator `accessKey` is the control
     // that must stay redacted after the fix.
     const collector = await createCollector({ maxLines: 50 });
-    const gaps = [
-      '  "access..key": "hunter2",',
-      '  "access__key": "hunter2",',
-      '  "ACCESS  KEY": "hunter2",',
+    // issue #24/DV-63 (AMENDED pins): the widened `access[-_\s.]+key` class
+    // masks the whole quoted NAME token and its adjacent value token —
+    // the strategy §7.5 forbidden key name never survives in any spelling.
+    const gaps: ReadonlyArray<readonly [input: string, expected: string]> = [
+      ['  "access..key": "hunter2",', '  "[REDACTED:accessKey]": "[REDACTED:accessKey]",'],
+      ['  "access__key": "hunter2",', '  "[REDACTED:accessKey]": "[REDACTED:accessKey]",'],
+      ['  "ACCESS  KEY": "hunter2",', '  "[REDACTED:accessKey]": "[REDACTED:accessKey]",'],
     ];
-    pushAll(collector, gaps);
+    pushAll(
+      collector,
+      gaps.map(([input]) => input),
+    );
     const stored = storedTexts(collector);
 
-    const leaked: string[] = [];
-    gaps.forEach((input, index) => {
-      if (stored[index] !== REDACTED)
-        leaked.push(`${input} → stored as ${JSON.stringify(stored[index])}`);
+    const mismatched: string[] = [];
+    gaps.forEach(([input, expected], index) => {
+      if (stored[index] !== expected)
+        mismatched.push(
+          `${input} → stored as ${JSON.stringify(stored[index])}, expected ${expected}`,
+        );
     });
     expect(
-      leaked,
-      'S5-6/TC-06-22 (issue #12): separator/case variants of the accessKey name ' +
-        `(access..key / access__key / ACCESS  KEY) must be replaced with ${REDACTED} — ` +
-        "today's [-_\\s]? class matches only ONE separator, so these variants pass " +
-        'through unredacted (FR-47, strategy §7.5):',
+      mismatched,
+      'S5-6/TC-06-22 (issue #12, AMENDED issue #24/DV-63): separator/case variants of ' +
+        'the accessKey name (access..key / access__key / ACCESS  KEY) must land as the ' +
+        'accessKey class marker on BOTH the name token and its value (FR-47, strategy §7.5):',
     ).toEqual([]);
 
     // Control: the canonical spelling is caught TODAY and must stay caught.
@@ -200,9 +236,9 @@ describe('log redaction — separator/case variants of the key names (S5-6 gap 3
     pushAll(controlCollector, [control]);
     expect(
       storedTexts(controlCollector)[0],
-      `control: the canonical accessKey line is already redacted today and must stay ${REDACTED} ` +
-        '(the widened rule may not lose the original class)',
-    ).toBe(REDACTED);
+      `control: the canonical accessKey line masks to the accessKey class marker ` +
+        '(issue #24/DV-63 — the widened rule may not lose the original class)',
+    ).toBe('  "[REDACTED:accessKey]": "[REDACTED:accessKey]",');
   });
 });
 

@@ -41,6 +41,17 @@ export interface AppLogEvent {
 /** `createLogCollector` options — FR-46: bounded at 2000 lines, configurable constant. */
 export interface LogCollectorOptions {
   readonly maxLines?: number;
+  /** Issue #24 (DV-63): the §8.4 INTERNAL values of the imported profile — exact occurrences become `[REDACTED:<field>]` tokens. */
+  readonly redactionContext?: RedactionContext;
+}
+
+/** Issue #24 (DV-63): the §8.4 INTERNAL fields known from the imported profile (hybrid redaction). */
+export interface RedactionContext {
+  readonly endpoint?: string;
+  readonly bucket?: string;
+  readonly prefix?: string;
+  readonly sessionsDir?: string;
+  readonly region?: string;
 }
 
 /** The collector instance M1-19 must return from `createLogCollector`. */
@@ -55,11 +66,15 @@ export interface LogCollector {
   clear(): void;
   /** Notifies with each stored (post-redaction) line; returns an unsubscribe function (FR-63 push). */
   subscribe(fn: (line: LogLine) => void): () => void;
+  /** Issue #24 (DV-63): refresh the INTERNAL values after (re-)import — fields replace, never cleared (fail-closed). */
+  setRedactionContext(context: RedactionContext): void;
 }
 
 /** Module surface QA declares for M1-19 (header-contract style, cf. DV-09/DV-16/DV-23). */
 export interface LogCollectorApi {
   createLogCollector(options?: LogCollectorOptions): LogCollector;
+  /** Issue #24 (DV-63): pure extraction of the §8.4 INTERNAL fields from a parsed config document. */
+  redactionContextFromConfig(doc: unknown): RedactionContext;
 }
 
 /** Non-literal on purpose (see file header): typecheck stays green while the module is absent. */

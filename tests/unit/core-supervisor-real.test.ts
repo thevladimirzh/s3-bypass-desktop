@@ -58,6 +58,7 @@ import {
   waitForPortFree,
   waitForPortState,
 } from '../helpers/core-supervisor-stub';
+import { loadLogCollector } from '../helpers/log-collector-stub';
 import { readConfigFixture } from '../helpers/profile-validator-stub';
 
 /** Repo root — this file lives at tests/unit/core-supervisor-real.test.ts. */
@@ -308,5 +309,73 @@ describe('real-binary integration — strategy D-4 (M2-10, TC-02-21..24)', () =>
       await waitForPortState(DEFAULT_SOCKS_PORT, false, 3000),
       'the dead child released 127.0.0.1:10808',
     ).toBe(true);
+  });
+});
+
+describe('real-core redaction pipeline (issue #24, DV-63) — TC-06-27', () => {
+  it('coreReal.redaction.pipeline.bootLinesKeepListenSignal', async () => {
+    // TC-06-27 — issue #24: the REAL core's own boot output through the
+    // collector's single entry point — the Logs-panel symptom (119/119
+    // [REDACTED] with a real profile) reproduced and pinned on REAL output:
+    // the listen line must SURVIVE with host:port intact (signal), the
+    // materialized config path must be MASKED (not passed through), and no
+    // configured canary/INTERNAL value may appear anywhere in the buffer.
+    const rig = await createRealRig();
+    expect((await rig.supervisor.start()).ok, 'precondition: running').toBe(true);
+    await waitFor(
+      () => rig.sink.some((line) => line.text.includes('started')),
+      3000,
+      'the real core boot lines reached the sink (D-4 signature)',
+    );
+
+    const config = JSON.parse(readConfigFixture('valid-client-config.json')) as {
+      outbounds?: Array<{ settings?: { storage?: Record<string, string> } }>;
+    };
+    const storage = config.outbounds?.[0]?.settings?.storage ?? {};
+    expect(Object.keys(storage).length, 'fixture sanity: type + 5 INTERNAL + 4 canaries').toBe(10);
+    // `type: "s3"` is structural config, not a secret — assert absence for
+    // the meaningful values only (4 canaries + 5 INTERNAL), never for
+    // 2-char fragments that could collide with unrelated output.
+    const configuredValues = Object.values(storage).filter((value) => value.length >= 6);
+    expect(configuredValues.length, 'fixture sanity: canaries + INTERNAL values').toBe(9);
+
+    // The sink delivers RAW lines (FR-47: the collector is the single entry
+    // point) — push them exactly as index.ts does, INCLUDING its wiring:
+    // the redaction context is extracted from the config document.
+    const collectorApi = await loadLogCollector();
+    expect(
+      typeof collectorApi.redactionContextFromConfig,
+      'contract (issue #24/DV-63): the module exports redactionContextFromConfig',
+    ).toBe('function');
+    const collector = collectorApi.createLogCollector({
+      maxLines: 100,
+      redactionContext: collectorApi.redactionContextFromConfig(config),
+    });
+    for (const line of rig.sink) collector.push(line);
+    const dump = collector
+      .get()
+      .lines.map((line) => line.text)
+      .join('\n');
+
+    expect(
+      dump,
+      'issue #24: the listen signal must SURVIVE redaction — host:port is PUBLIC (§8.4)',
+    ).toContain('listening TCP on 127.0.0.1:10808');
+    expect(dump, 'issue #24: the config-read line keeps its scaffolding').toContain(
+      'Reading config',
+    );
+    expect(
+      dump,
+      'masking asserted, not just absence — the materialized config path was masked (§8.4)',
+    ).toContain('[REDACTED');
+    for (const value of configuredValues) {
+      expect(
+        dump.includes(value),
+        `NFR-2/issue #24: configured value "${value}" must have 0 occurrences in the real-output buffer`,
+      ).toBe(false);
+    }
+
+    const stopped = await rig.supervisor.stop();
+    expect(stopped.ok, 'cleanup stop for this case').toBe(true);
   });
 });
