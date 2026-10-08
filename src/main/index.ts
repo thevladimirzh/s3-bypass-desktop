@@ -32,6 +32,7 @@ import type {
   StatusSnapshot,
 } from '../shared/ipc';
 import { type AppError, type CoreState } from '../shared/status-machine';
+import { resolveCoreBinaryPath } from './core-binary-path';
 import { createSupervisor } from './core-supervisor';
 import { createCoreWiring } from './core-wiring';
 import { assertTrustedSender } from './ipc-guard';
@@ -500,26 +501,10 @@ function parseStoredProfile(raw: string): Record<string, unknown> | null {
 // ————————————————————————————————————————————————————————————————
 
 /**
- * S4-5 (docs/qa/security-m1-10.md): the `CORE_BINARY_PATH` dev override is
- * honored ONLY while `!app.isPackaged` — inside a package the bundled engine
- * path wins so the environment can never substitute the executable (M2 pins
- * the packaged name; until then the path simply does not exist and the
- * supervisor answers the documented E-IO-004 without spawning, risk R-1).
+ * M2-04 (TC-02-16/17/18, DV-40): the resolution rules live in the pure
+ * `core-binary-path` module (S4-5 comment there) — the host only injects
+ * its environment at the wiring site below.
  */
-function resolveCoreBinaryPath(): string {
-  const override = process.env.CORE_BINARY_PATH;
-  if (!app.isPackaged && override !== undefined && override.trim() !== '') {
-    return override;
-  }
-  // `process.resourcesPath` exists only inside a real Electron process; the
-  // unit-test harness loads this module under plain node where it is absent.
-  // Falling back to the bare name keeps construction total — no such file
-  // resolves from the test cwd, so the supervisor answers the documented
-  // E-IO-004 without spawning (risk R-1), exactly like a missing bundle.
-  const resources = process.resourcesPath;
-  const dir = typeof resources === 'string' && resources !== '' ? resources : '.';
-  return join(dir, 'fedarisha-xray-core');
-}
 
 /**
  * The M1-17 status wiring (FR-13/FR-25/FR-26/FR-63): `core:start`,
@@ -530,7 +515,12 @@ function resolveCoreBinaryPath(): string {
  */
 const coreWiring = createCoreWiring({
   createSupervisor,
-  binaryPath: resolveCoreBinaryPath(),
+  binaryPath: resolveCoreBinaryPath({
+    isPackaged: app.isPackaged,
+    override: process.env.CORE_BINARY_PATH,
+    resourcesPath: process.resourcesPath,
+    platform: process.platform,
+  }),
   loadConfig: (): string | null => {
     // Same degradation rule `profile:get` applies: an unreadable store
     // answers "no profile" (data-flows §5) — the step-0 guard refuses Start.

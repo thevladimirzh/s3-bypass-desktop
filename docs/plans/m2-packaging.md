@@ -52,11 +52,16 @@ pattern of DV-36/DV-37.
       GREEN in this commit (`docs/analysis/core-pin.md` + verify script +
       `verify:core-pin`; 218 passed | 0 failed; all 3 real assets `core pin OK`,
       tampered file exit 1 MISMATCH; upstream `.dgst` cross-check matched).
-- [ ] **M2-04** · developer · **M** · deps: M2-03 · `todo`
+- [x] **M2-04** · developer · **M** · deps: M2-03 · `done`
       Bundle the pinned binary into the app (`extraResources`, per-platform path)
       and teach the supervisor to resolve it: packaged path > `CORE_BINARY_PATH`
       dev override (kept — the M1 suites depend on it) > honest error when neither
       exists. RED first: unit pins for the resolution order + platform mapping.
+      Evidence: RED `58b3d14` (TC-02-16/17/18/20 + TC-PKG-04, observed 5 failed |
+      218 passed) → GREEN in this commit (pure `core-binary-path.ts` + index.ts
+      delegation + `prepare:core` staging; 223 passed | 0 failed; live
+      `npm run prepare:core` staged darwin-x64/darwin-arm64/linux-x64 verified
+      against the pin). `extraResources` config lands with M2-05's own RED.
 
 ### Phase C — Packaging
 

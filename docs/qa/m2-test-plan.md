@@ -122,6 +122,22 @@ DV-33). Observed: `Tests 5 failed | 218 passed (223)`,
 `Test Files 1 failed | 32 passed (33)`, exit 1; `npm run lint` +
 `npm run typecheck` + `npx prettier --check` exit 0.
 
+**M2-04 bundled-core path — GREEN** (2026-10-08): artifacts per DV-40 —
+`src/main/core-binary-path.ts` (pure resolver: packaged bundle > verbatim dev
+override > `join(resourcesPath ?? '.', 'core', platform, 'xray')`, total; the
+S4-5 comment moved here), `src/main/index.ts` delegation (the local function is
+gone — one implementation), `scripts/prepare-core.mjs` + `prepare:core` (download
+→ SHA-256 verify against `docs/analysis/core-pin.md` through the shared
+`expectedShaForAsset` → extract all five members into `core-bin/<target>/` →
+chmod 0755), `.gitignore core-bin/`. Observed: `Tests 223 passed (223)`,
+`Test Files 33 passed (33)` — TC-02-16/17/18/20 + TC-PKG-04 GREEN through the
+unchanged absence loader (the M1-16 pattern: it now loads the real module with
+zero test edits), baseline 218/0 untouched (+5 = this batch's own RED). Live
+evidence: `npm run prepare:core` exit 0 — darwin-x64, darwin-arm64 and linux-x64
+staged (five members each, `xray` mode 0755) with every digest verified against
+the pin; a mismatch aborts with exit 1. `npm run lint` + `npm run typecheck` +
+`npx prettier --check` exit 0.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 
