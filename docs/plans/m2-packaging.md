@@ -108,6 +108,10 @@ pattern of DV-36/DV-37.
       `37714279005` **Release SUCCESS both legs** (manifest OK 4/5 entries;
       artifacts-macOS 152 313 143 B, artifacts-Linux 370 475 445 B), CI on the
       fix `37714274378` success; test tag deleted after observation.
+      Follow-up (owner request 2026-10-08): distro split — `.deb`/`.AppImage`
+      stay on ubuntu, the `.rpm` moves to a pinned **fedora:46 container**
+      (native rpmbuild; TC-PKG-15, DV-47) — RED/GREEN + tag validation in the
+      follow-up commits.
 - [ ] **M2-08** · devops · **S** · deps: M2-07 · `todo`
       Live `npm audit` evidence for the packaging chain (issue #2, M0-19 S4-5):
       record the output in `docs/qa/security-m2-audit.md`, triage highs into

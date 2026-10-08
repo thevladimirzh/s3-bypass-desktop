@@ -64,6 +64,41 @@
  * Observed RED: TC-PKG-11 fails on the absent release workflow, TC-PKG-12/13
  * on the absent `coverage`/`e2e` jobs in ci.yml, TC-PKG-14 on the absent
  * manifest script (ENOENT). Baseline untouched: 229 passed / 0 failed.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * TC-PKG-15 (RED after M2-07 closed) — distro split, owner request 2026-10-08:
+ *
+ *   GREEN CONTRACT: `.github/workflows/release.yml` separates the Debian and
+ *   RPM ecosystems (the single ubuntu leg currently builds AppImage + deb +
+ *   rpm with Debian's `rpm` package):
+ *
+ *   1. The matrix `build` job gets an `include:` list with per-leg fields —
+ *      `macos-latest` (no `--linux` arg → platform default dmg) and
+ *      `ubuntu-latest` with `dist_args: --linux AppImage deb` — the CLI
+ *      target list overrides electron-builder.yml's full target list for
+ *      that run (the yml itself stays untouched — TC-PKG-06 pins remain),
+ *      upload `path:` per leg from the matrix (`release/*.dmg` vs
+ *      `release/*.AppImage` + `release/*.deb`, both with SHA256SUMS.txt),
+ *      artifact name stays `artifacts-${{ runner.os }}` (macOS vs Linux —
+ *      unique within the run).
+ *   2. NEW job `build-rpm`: `runs-on: ubuntu-latest` + `container:
+ *      image: fedora:46` (GitHub hosts no Fedora runners — the container IS
+ *      the way; fedora:46 = current stable per Docker Hub on 2026-10-08,
+ *      pinned to the major, never `latest`). Step order: FIRST
+ *      `dnf -y install git rpm-build unzip zstd` (fedora-minimal ships
+ *      neither: git for actions/checkout, rpm-build = NATIVE rpmbuild for
+ *      electron-builder's rpm target, unzip for scripts/prepare-core.mjs
+ *      which spawnSync()s it, zstd for the actions/cache tar --zstd), then
+ *      checkout → setup-node → npm ci → prepare:core → build →
+ *      `npm run dist -- --publish never --linux rpm` (rpm ONLY on this leg)
+ *      → release:manifest → upload `artifacts-fedora`
+ *      (`release/*.rpm` + SHA256SUMS.txt, if-no-files-found: error).
+ *   3. The matrix job must NOT pass `--linux … rpm` anywhere (moved leg).
+ *   4. All TC-PKG-11 pins keep holding verbatim.
+ *
+ * Observed RED for TC-PKG-15: the `build-rpm` job is absent (jobBlock → -1),
+ * `--linux AppImage deb` absent from the matrix job. Baseline at RED:
+ * 233 passed / 0 failed.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -258,5 +293,80 @@ describe('TC-PKG-14 — manifest CLI writes, verifies and fails loudly (M2-07)',
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('TC-PKG-15 — .deb on ubuntu, .rpm in a pinned Fedora container (M2-07 follow-up)', () => {
+  it('releaseWorkflow.debOnUbuntuRpmOnFedora', () => {
+    const yml = repoFile('.github/workflows/release.yml');
+
+    const build = jobBlock(yml, 'build').join('\n');
+    expect(
+      build,
+      'owner request 2026-10-08 (DV-47): the ubuntu leg builds the Debian ' +
+        'ecosystem natively — CLI targets `--linux AppImage deb` (the list ' +
+        'overrides electron-builder.yml for this run)',
+    ).toContain('--linux AppImage deb');
+    expect(
+      build,
+      'DV-47: the rpm moved OUT of the ubuntu leg — no `--linux … rpm` may ' +
+        'remain in the matrix job',
+    ).not.toMatch(/--linux[^\n]*rpm/);
+    expect(
+      build,
+      'DV-47: matrix legs upload as `artifacts-${{ runner.os }}` (macOS vs ' +
+        'Linux — unique within a run)',
+    ).toContain('artifacts-${{ runner.os }}');
+
+    const rpm = jobBlock(yml, 'build-rpm').join('\n');
+    expect(
+      rpm,
+      'DV-47: the rpm leg must run in a PINNED Fedora container (GitHub ' +
+        'hosts no Fedora runners — `container: image: fedora:<major>`, never ' +
+        '`latest`)',
+    ).toMatch(/fedora:\d+/);
+    expect(
+      rpm,
+      'DV-47: fedora-minimal tooling installed BEFORE the steps need it — ' +
+        'git (actions/checkout), rpm-build (NATIVE rpmbuild for the rpm ' +
+        'target), unzip (scripts/prepare-core.mjs spawnSyncs it), zstd ' +
+        '(actions/cache tar --zstd)',
+    ).toMatch(/dnf -y install[^\n]*git[^\n]*rpm-build[^\n]*unzip[^\n]*zstd/);
+    expect(
+      rpm.indexOf('dnf -y install'),
+      'DV-47: the dnf step must run BEFORE actions/checkout (the ' +
+        'fedora-minimal image has no /Users/vladimir/.local/bin/git-bot for the checkout action)',
+    ).toBeLessThan(rpm.indexOf('actions/checkout'));
+    expect(
+      rpm,
+      'DV-47: this leg builds ONLY the rpm — `--linux rpm` (AppImage/deb ' +
+        'stay on the ubuntu leg)',
+    ).toContain('--linux rpm');
+    expect(rpm, 'DV-47: this leg must not receive Debian targets').not.toMatch(
+      /--linux[^\n]*AppImage/,
+    );
+    expect(
+      rpm,
+      'DoD #1 applies on EVERY leg: prepare:core re-verifies the pinned core ' +
+        'digests before packaging',
+    ).toContain('npm run prepare:core');
+    expect(
+      rpm,
+      'DoD #1 on this leg too: the SHA-256 manifest is written and ' + 're-verified',
+    ).toContain('npm run release:manifest');
+    expect(
+      rpm,
+      'DV-47: unique artifact name — the matrix job already owns ' +
+        '`artifacts-${{ runner.os }}` (Linux); this job must not collide with it',
+    ).toContain('artifacts-fedora');
+    expect(
+      rpm,
+      'a missing rpm must FAIL the release build (same discipline as the ' + 'matrix job)',
+    ).toContain('if-no-files-found: error');
+    expect(
+      rpm,
+      'the publish suppression applies on this leg as well (tag builds would ' +
+        'otherwise demand GH_TOKEN — DV-46)',
+    ).toContain('--publish never');
   });
 });
