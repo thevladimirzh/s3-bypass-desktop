@@ -14,7 +14,8 @@
  * (`status.longErrorText.truncatedButCopyGivesFullTextNoSecrets`), TC-02-03
  * (`supervisor.startControl.noProfile.disabledWithImportHint`, component half;
  * the main-guard siblings are in core-wiring.test.ts), NEW TC-02-15
- * (`startStop.controls.disabledBusyStatesFollowStatus`, §14 DV-28), TC-04-04
+ * (`startStop.controls.disabledBusyStatesFollowStatus`, §14 DV-28), NEW
+ * TC-02-25 (`startStop.controls.singleRoundConnectToggle`, issue #26), TC-04-04
  * (`systemProxyToggle.coreNotRunning.disabledWithStartHint`), TC-01-08
  * (`profileImport.reimport.replacesProfileAndShowsActiveName`) —
  * docs/qa/m1-test-plan.md §1–§5 rows, the M1-16 row in §10, counts in §13,
@@ -56,6 +57,13 @@
  *    during `starting`/`stopping` → no enabled Start AND no enabled Stop
  *    (busy/disabled — plan M1-17 explicit; §12.1 addendum). Clicking the
  *    enabled Start/Stop invokes `startCore()`/`stopCore()` once (§4.2).
+ *  - LAYOUT (NEW TC-02-25, owner decision issue #26, 2026-10-08): the
+ *    controls section renders EXACTLY ONE round connect toggle
+ *    (`.connect-toggle`, `border-radius: 50%`, ≥ 6rem square) whose
+ *    accessible name is EXACTLY `Start` (stopped/crashed/starting) or `Stop`
+ *    (running/stopping) — the exact-name seam the e2e smoke and the .fm
+ *    drivers click. The two-layout tolerance above stays TC-02-15's guard
+ *    contract; the LAYOUT itself is pinned here.
  *  - FR-12 (no profile): the Start control EXISTS but is disabled, with the
  *    exact visible hint "Import a profile first".
  *  - FR-30/AC-04.4: while status ≠ `running` the proxy toggle is rendered as
@@ -82,6 +90,10 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import App from '../../src/renderer/src/App';
+// The stylesheet as TEXT for the TC-02-25 shape scan (jsdom applies no CSS);
+// `?raw` is typed by vite/client, which this web tsconfig already loads — no
+// node builtin may enter the renderer test project.
+import stylesCss from '../../src/renderer/src/styles.css?raw';
 import { DEFAULT_SOCKS_PORT } from '../../src/shared/constants';
 import type {
   AppError,
@@ -601,6 +613,71 @@ describe('Start/Stop controls — guards and busy states (FR-12, FR-13, plan M1-
         'clicking the enabled Stop control invokes core:stop once (§4.2)',
       ).toHaveBeenCalledTimes(1),
     );
+  });
+
+  it('startStop.controls.singleRoundConnectToggle', async () => {
+    // TC-02-25 — owner decision issue #26 (2026-10-08): the two-button
+    // Start/Stop row is replaced by ONE large round connect toggle
+    // (incy-style). jsdom computes no layout, so the round/large shape is a
+    // structural + stylesheet source scan (TC-05-15/TC-01-15 scan-style
+    // precedent); the guard semantics stay TC-02-15's pins above.
+    const rig = installBridge({ profile: OLD_PROFILE });
+    const { container } = render(<App />);
+
+    await expectVisibleText(
+      OLD_PROFILE.displayName,
+      'the stored profile must settle (§5 startup: profile:get) before controls render',
+    );
+
+    const controls = container.querySelectorAll('.controls button');
+    expect(
+      controls.length,
+      'issue #26: EXACTLY ONE action control in .controls — the single round ' +
+        'toggle replaces the Start/Stop pair (two buttons = RED)',
+    ).toBe(1);
+    const toggle = controls[0] as HTMLButtonElement;
+    expect(
+      toggle.className,
+      'issue #26: the toggle carries the connect-toggle marker class',
+    ).toContain('connect-toggle');
+    expect(
+      toggle.getAttribute('aria-label'),
+      'the exact accessible-name seam (e2e smoke + .fm drivers click name ' +
+        '"Start" exact) reads Start while stopped',
+    ).toBe('Start');
+
+    await requireSubscription(rig);
+    rig.push(RUNNING);
+    const runningToggle = container.querySelector('.controls button') as HTMLButtonElement | null;
+    expect(
+      runningToggle?.getAttribute('aria-label'),
+      'FR-13: the control switches to Stop while running (exact name)',
+    ).toBe('Stop');
+    expect(
+      runningToggle?.disabled,
+      'running → the single toggle is enabled for Stop (TC-02-15 guard half)',
+    ).toBe(false);
+
+    // The round + LARGE shape (issue #26) — a stylesheet source scan, since
+    // jsdom applies no CSS (structural-pin precedent: TC-05-15 / TC-01-15).
+    const rule = stylesCss.match(/\.connect-toggle\s*\{([^}]*)\}/);
+    expect(rule, 'styles.css must define the .connect-toggle rule').not.toBeNull();
+    const body = rule?.[1] ?? '';
+    expect(body, 'issue #26: the toggle is a CIRCLE (border-radius: 50%)').toMatch(
+      /border-radius:\s*50%/,
+    );
+    const width = body.match(/(?:^|[^-\w])width:\s*([\d.]+)rem/);
+    const height = body.match(/(?:^|[^-\w])height:\s*([\d.]+)rem/);
+    expect(width, '.connect-toggle pins a rem width (square canvas)').not.toBeNull();
+    expect(height, '.connect-toggle pins a rem height (square canvas)').not.toBeNull();
+    expect(
+      Number(width?.[1]),
+      'issue #26: width and height must be EQUAL — the control is a circle',
+    ).toBe(Number(height?.[1]));
+    expect(
+      Number(width?.[1]),
+      'issue #26: LARGE — at least 6rem across (incy-style, not a small pill)',
+    ).toBeGreaterThanOrEqual(6);
   });
 });
 
