@@ -23,17 +23,17 @@ environment · `deferred-M3` = out of M2 scope per spec note.
 
 ## 1. Scope ↔ board tasks
 
-| §   | Scope                                                                               | Board task  | Family                                |
-| --- | ----------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
-| 2   | Core pinning: verify script behavior + pin-doc structure                            | M2-03       | `TC-PKG-01..`                         |
-| 3   | Bundled-core path resolution: packaged > `CORE_BINARY_PATH` > honest error          | M2-04       | `TC-02-16..`, `TC-02-20`, `TC-PKG-04` |
-| 4   | electron-builder config: targets, unsigned macOS, core in resources, Gatekeeper doc | M2-05       | `TC-PKG-05..07`                       |
-| 5   | License attributions shipped inside the artifacts (core = MPL-2.0)                  | M2-06       | `TC-PKG-08..10`                       |
-| 6   | Release CI: tag → artifacts + SHA-256 manifest; coverage & e2e jobs land            | M2-07/M2-08 | `TC-PKG-11..17` (+ L3, M2-08)         |
-| 7   | Real-binary integration (strategy D-4) + authoritative coverage number (G-05)       | M2-10       | `TC-02-..` / `TC-03-..` (+ L3)        |
-| 8   | Issue #19 crash-path surfacing (FR-35 quit-time `E-PLAT-003`, tray freshness)       | M2-11       | `TC-04-20..`, `TC-05-24..`            |
-| 9   | Fresh-machine install DoD + the Q9-waived M1 desktop manual rows                    | M2-12       | `L4` (checklist)                      |
-| 9   | Security-review findings (M2-09) → story families, declared per batch               | M2-09       | story families + DV row               |
+| §   | Scope                                                                               | Board task  | Family                                    |
+| --- | ----------------------------------------------------------------------------------- | ----------- | ----------------------------------------- |
+| 2   | Core pinning: verify script behavior + pin-doc structure                            | M2-03       | `TC-PKG-01..`                             |
+| 3   | Bundled-core path resolution: packaged > `CORE_BINARY_PATH` > honest error          | M2-04       | `TC-02-16..`, `TC-02-20`, `TC-PKG-04`     |
+| 4   | electron-builder config: targets, unsigned macOS, core in resources, Gatekeeper doc | M2-05       | `TC-PKG-05..07`                           |
+| 5   | License attributions shipped inside the artifacts (core = MPL-2.0)                  | M2-06       | `TC-PKG-08..10`                           |
+| 6   | Release CI: tag → artifacts + SHA-256 manifest; coverage & e2e jobs land            | M2-07/M2-08 | `TC-PKG-11..17` (+ L3, M2-08)             |
+| 7   | Real-binary integration (strategy D-4) + authoritative coverage number (G-05)       | M2-10       | `TC-02-..` / `TC-03-..` (+ L3)            |
+| 8   | Issue #19 crash-path surfacing (FR-35 quit-time `E-PLAT-003`, tray freshness)       | M2-11       | `TC-04-20..`, `TC-05-24..`                |
+| 9   | Fresh-machine install DoD + the Q9-waived M1 desktop manual rows                    | M2-12       | `L4` (checklist)                          |
+| 9   | Security-review findings (M2-09) → story families, declared per batch               | M2-09       | §9.1 rows (issues #20–#22; S6-x accepted) |
 
 §2..§9 rows are appended below as each batch is written (RED first); every batch
 declares its new IDs, counts and observed RED numbers in §11 (house rule — the same
@@ -99,7 +99,23 @@ _TBD at RED time — declared: `TC-04-20..` (quit-time `E-PLAT-003`), `TC-05-24.
 
 ## 9. Fresh-machine DoD (M2-12) + security review (M2-09)
 
-_TBD — L4 checklist + findings rows._
+### 9.1 Security review (M2-09) — findings rows (declared; fix batches claim their TC IDs)
+
+Report: `docs/qa/security-m2-09.md` — **0 critical / 0 high / 0 medium**, review-only
+batch (no code/test change; baseline **236 passed / 0 failed (37 files)** untouched).
+
+| ID         | Sev        | Area         | Finding (short)                                                                                                                        | Disposition                                                    |
+| ---------- | ---------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| S6-1       | **low**    | supply chain | local `dist` packs `core-bin/` as-is (no prepare gate, staging never cleaned)                                                          | **issue #20** — fix batch declares TC-PKG-18..                 |
+| S5-12      | low        | S3 keys      | core child inherits full `process.env` (untracked since M1-25)                                                                         | **issue #21** — fix batch declares its TCs                     |
+| S5-8       | low        | carry-over   | unbounded line-reader buffer (untracked)                                                                                               | **issue #22** (umbrella)                                       |
+| S5-15      | low        | carry-over   | teardown/`execFile` without timeouts (untracked)                                                                                       | **issue #22** (umbrella)                                       |
+| S6-2..S6-8 | info       | all three    | tag-pinned container; Electron fetch integrity; fetch bounds; plaintext T; hard-kill residual; issue #5 breadth; npm lifecycle scripts | accepted with rationale / tracked (`security-m2-09.md` §2, §5) |
+| S5-14      | — (closed) | supply chain | no integrity verification before spawn (M2 blocker)                                                                                    | **closed at this gate** (`security-m2-09.md` §2)               |
+
+### 9.2 Fresh-machine DoD (M2-12) — L4 checklist
+
+_TBD — L4 checklist (M2-12)._
 
 ---
 
@@ -428,6 +444,24 @@ leg added (plus S5-13's blocking prod leg). Triage: **0 high /
 the data). Batch: RED `846daa2` → GREEN `96cc311` → docs close —
 **done**; issue #2 close comment goes through the owner per the
 text-via-question rule.
+
+**M2-09 security review (2026-10-08)** — review-only batch, no code/test
+change (RED/GREEN not applicable: the board task is a read-only gate);
+baseline **236 passed / 0 failed (37 files)** untouched. Evidence:
+`docs/qa/security-m2-09.md` (§4 = the three areas line-anchored: supply
+chain pin ↔ hash ↔ artifact walked end-to-end incl. live **0 unpinned
+`uses:`** in both workflows; S3-key lifecycle at rest/renderer/core/logs;
+IPC 11/11 `assertTrustedSender`-first + window/CSP/payload guards).
+Live negative checks: `grep` shows no `env:` on the spawn (S5-12 open),
+no line-buffer cap (S5-8 open), `execFile` without `timeout` (S5-15
+open) — and none of the three had any tracker outside the M1-25 report.
+Triage (house rule — issues, not comments): S6-1 (new low) → **#20**;
+S5-12 → **#21**; S5-8 + S5-15 → **#22**; S6-2..S6-8 + S5-10 replay
+residual accepted in-document; S5-14 (M2 blocker) **closed at this
+gate**; S5-1..7/S5-9/S5-11 re-verified fixed against current code
+(issues #7–#13, #3). Verdict **PASS — 0 critical / 0 high / 0 medium**;
+M2 DoD #3 = MET. Findings rows declared in §9.1 (no new TC IDs — fix
+batches #20–#22 declare theirs).
 
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_

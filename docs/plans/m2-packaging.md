@@ -132,10 +132,21 @@ pattern of DV-36/DV-37.
       re-evaluation triggers). CI `37719728001` all 4 jobs green with both
       audit steps success; **0 highs → 0 issues to triage**; issue #2
       evidence satisfied (close comment pending owner approval).
-- [ ] **M2-09** · cybersecurity · **M** · deps: M2-05, M2-07 · `todo`
+- [x] **M2-09** · cybersecurity · **M** · deps: M2-05, M2-07 · `done`
       Security review before external distribution (M2 DoD #3): supply chain
       (pin ↔ hash ↔ artifact), S3 key handling in the packaged app, IPC surface
       re-check. Findings → GitHub issues (house rule), not comments.
+      Evidence: `docs/qa/security-m2-09.md` — verdict **PASS, 0 critical /
+      0 high / 0 medium**; §4 walks all three areas line-anchored (release
+      chain `npm ci → prepare:core → dist → release:manifest` verified, live
+      0 unpinned `uses:`; safeStorage/0600/redaction/renderer-summary
+      verified; 11/11 handlers guard-first + window/CSP/payload guards).
+      Triage: new low S6-1 (local `dist` packs `core-bin/` as-is) → issue
+      **#20**; untracked prior lows S5-12 (child env) → **#21**, S5-8 +
+      S5-15 → **#22**; S6-2..S6-8 accepted with rationale; **S5-14 closed
+      at this gate** (M2 blocker: pin ↔ hash ↔ artifact end-to-end); prior
+      S5-1..7/S5-9/S5-11 re-verified fixed (issues #7–#13, #3). Review-only
+      batch: baseline 236/0 untouched, no comments — issues only.
 
 ### Phase E — Real-binary verification & acceptance
 
