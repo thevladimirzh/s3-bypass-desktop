@@ -40,7 +40,7 @@
  * 10 = D-10(f) log collector naming, 11 = D-11 coverage gate (batch D,
  * §14 DV-37 — the family covers docs/config raw-text pins).
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -262,5 +262,182 @@ describe('D-11 — coverage gate mechanically configured (issue #18)', () => {
       lines,
       'D-11: coverage.thresholds.lines must be ≥ 80 (strategy §6 "≥ 80 % lines on src/**")',
     ).toBeGreaterThanOrEqual(80);
+  });
+});
+
+/**
+ * TC-POL-06 (M3-09, board Phase E) — the user-documentation set and the
+ * README split. DoD #1 input: `docs/user/beta-setup.md` is the handout the
+ * external tester receives (M3-11 is blocked until it exists).
+ *
+ * RED state: `docs/user/` does not exist at all, and README still carries
+ * the M0/M1-era status line ending "Not usable yet." with no user-facing
+ * entry point. GREEN writes the five docs (macOS unsigned install +
+ * Gatekeeper, Linux three targets, first profile quoting the shipped hint
+ * verbatim, troubleshooting with the manual 127.0.0.1:10808 SOCKS path,
+ * the beta setup handout) and splits README into user vs development
+ * sections with every `docs/user/` file linked.
+ *
+ * All loaders are existsSync-gated with named reasons — an ABSENCE RED
+ * (strategy §5.1) must never surface a raw ENOENT.
+ */
+describe('TC-POL-06 — user docs set + README split (M3-09, DoD #1 input)', () => {
+  /** Named-reason loader for a not-yet-written doc. */
+  function userDoc(relative: string, why: string): string {
+    const path = fileURLToPath(new URL(`../../${relative}`, import.meta.url));
+    expect(existsSync(path), why).toBe(true);
+    return readFileSync(path, 'utf8');
+  }
+
+  it('docs.user.installMacos.unsignedGatekeeperPathWritten', () => {
+    const install = userDoc(
+      'docs/user/install-macos.md',
+      'M3-09 (board Phase E): docs/user/install-macos.md must exist — the ' +
+        'unsigned macOS install + Gatekeeper path is a beta deliverable (ABSENCE RED)',
+    );
+    expect(
+      install,
+      'BRIEF §10 honesty: the doc must say the build is UNSIGNED (no Apple ' +
+        'Developer account) so the scary dialog is expected, not a bug',
+    ).toMatch(/unsigned/i);
+    expect(
+      install,
+      'the Gatekeeper escape path is the right-click/Control-click → Open ' +
+        'flow — users must get the exact gesture, not "disable Gatekeeper"',
+    ).toMatch(/control-click|right-click/i);
+    expect(
+      install,
+      'the dialog action names "Open" verbatim (the shipped Gatekeeper doc ' +
+        'of TC-PKG-07 says the same words)',
+    ).toContain('Open');
+    expect(
+      install,
+      'M3-09: link the dedicated Gatekeeper doc instead of duplicating it ' +
+        '(docs/product/macos-gatekeeper.md)',
+    ).toContain('macos-gatekeeper');
+  });
+
+  it('docs.user.installLinux.threeTargetsCovered', () => {
+    const install = userDoc(
+      'docs/user/install-linux.md',
+      'M3-09: docs/user/install-linux.md must exist — AppImage + deb + rpm ' +
+        'install paths are a beta deliverable (ABSENCE RED)',
+    );
+    for (const target of ['AppImage', 'deb', 'rpm']) {
+      expect(
+        install,
+        `BRIEF §9 ships all three Linux artifacts — the doc covers "${target}"`,
+      ).toContain(target);
+    }
+    expect(
+      install,
+      'an AppImage is not executable out of the box — `chmod +x` is a real ' +
+        'step the doc cannot skip',
+    ).toContain('chmod +x');
+  });
+
+  it('docs.user.firstProfile.quotesShippedHintVerbatim', () => {
+    const first = userDoc(
+      'docs/user/first-profile.md',
+      'M3-09: docs/user/first-profile.md must exist — import + Start loop ' +
+        'for a first-run tester (ABSENCE RED)',
+    );
+    expect(
+      first,
+      'the doc must quote the EXACT shipped hint — byte-identical with what ' +
+        'the app renders (TC-POL-05 seam), so the user matches words to screen',
+    ).toContain('Import a profile first');
+    expect(
+      first,
+      'the Start control is the next step after import (the exact-name ' +
+        'contract seam, AC-02.3)',
+    ).toContain('Start');
+    expect(first, 'the badge word the user will see while the tunnel comes up (FR-41)').toContain(
+      'Running',
+    );
+  });
+
+  it('docs.user.troubleshooting.manualProxyAndCopyLogs', () => {
+    const trouble = userDoc(
+      'docs/user/troubleshooting.md',
+      'M3-09: docs/user/troubleshooting.md must exist — the manual ' +
+        'system-proxy fallback + support workflow (ABSENCE RED)',
+    );
+    expect(trouble, 'the loopback endpoint of the manual proxy path').toContain('127.0.0.1');
+    expect(trouble, 'the shipped SOCKS port (BRIEF/FR-30 default)').toContain('10808');
+    expect(
+      trouble,
+      'the protocol name belongs in the manual-proxy instructions — a SOCKS ' +
+        'proxy field is what the user fills in',
+    ).toContain('SOCKS');
+    expect(
+      trouble,
+      'the exact "Copy logs" button (AC-06.5) is the support workflow — the ' +
+        'doc must name what the user clicks',
+    ).toContain('Copy logs');
+  });
+
+  it('docs.user.betaSetup.installerHandoutSpelledOut', () => {
+    const beta = userDoc(
+      'docs/user/beta-setup.md',
+      'M3-09/DoD #1: docs/user/beta-setup.md must exist — it IS the tester ' +
+        'handout M3-11 waits on (ABSENCE RED)',
+    );
+    expect(
+      beta,
+      'DoD #1 honesty: the handout tells the tester to verify the SHA-256 ' +
+        'manifest (release/SHA256SUMS.txt)',
+    ).toContain('SHA256SUMS');
+    expect(
+      beta,
+      'the mac installers are named per arch (issue #27 outcome — arm64 and ' + 'Intel)',
+    ).toContain('arm64');
+    expect(beta, 'the Intel dmg half of issue #27').toContain('x64');
+    expect(beta, 'the Linux artifact family (BRIEF §9)').toContain('AppImage');
+    expect(beta, 'the handout names the app the tester installs and launches').toContain(
+      'S3 Bypass Desktop',
+    );
+  });
+
+  it('docs.readme.userVsDevelopmentSplitAndHonestStatus', () => {
+    const readme = doc('README.md');
+    expect(
+      readme,
+      'M3-09: README splits user vs development sections — the Development ' +
+        'section keeps its home',
+    ).toContain('## Development');
+    expect(readme, 'the user entry point — README must link the macOS install doc').toContain(
+      'docs/user/install-macos.md',
+    );
+    expect(readme, 'the beta handout must be discoverable from README (DoD #1 input)').toContain(
+      'docs/user/beta-setup.md',
+    );
+    expect(
+      readme,
+      'the M0/M1-era "Not usable yet." line must be gone — README states the ' +
+        'current M3/beta status honestly (acceptance reality, same discipline ' +
+        'as D-04..D-10)',
+    ).not.toMatch(/Not usable yet/);
+  });
+
+  it('docs.readme.everyUserFileLinked', () => {
+    const dir = fileURLToPath(new URL('../../docs/user/', import.meta.url));
+    expect(
+      existsSync(dir),
+      'M3-09: docs/user/ must exist (ABSENCE RED) — the mechanical link ' +
+        'sweep below guards every file the set ever grows',
+    ).toBe(true);
+    const files = readdirSync(dir).filter((name) => name.endsWith('.md'));
+    expect(
+      files.length,
+      'the five-doc set (install macOS/Linux, first profile, troubleshooting, ' +
+        'beta setup) must be complete',
+    ).toBeGreaterThanOrEqual(5);
+    const readme = doc('README.md');
+    for (const name of files) {
+      expect(readme, `README must link docs/user/${name} — no orphan in the user set`).toContain(
+        `docs/user/${name}`,
+      );
+    }
   });
 });

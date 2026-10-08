@@ -138,6 +138,20 @@ modules, batch A). Key namespace: `status.* hint.* action.* tray.* logs.* app.*`
 
 ---
 
+## 6. User documentation set + README split (M3-09 RED / GREEN) — TC-POL-06
+
+| Pin                                                    | What                                                                                                                                                                                                     | Suite                      | Status                                |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------- |
+| `docs.user.installMacos.unsignedGatekeeperPathWritten` | ABSENCE RED: `docs/user/install-macos.md` exists; says the build is **unsigned** (BRIEF §10 honesty), gives the Control/right-click → Open gesture (not "disable Gatekeeper"), links `macos-gatekeeper`  | `docs-consistency.test.ts` | RED-written (absence)                 |
+| `docs.user.installLinux.threeTargetsCovered`           | ABSENCE RED: `docs/user/install-linux.md` exists; covers AppImage + deb + rpm (BRIEF §9) incl. the real `chmod +x` step                                                                                  | `docs-consistency.test.ts` | RED-written (absence)                 |
+| `docs.user.firstProfile.quotesShippedHintVerbatim`     | ABSENCE RED: `docs/user/first-profile.md` exists; quotes the exact shipped hint `Import a profile first`, the `Start` control, the `Running` badge word (byte-identical with the app — TC-POL-05 tie-in) | `docs-consistency.test.ts` | RED-written (absence)                 |
+| `docs.user.troubleshooting.manualProxyAndCopyLogs`     | ABSENCE RED: `docs/user/troubleshooting.md` exists; manual proxy endpoint `127.0.0.1:10808` + `SOCKS` + the exact `Copy logs` button (AC-06.5)                                                           | `docs-consistency.test.ts` | RED-written (absence)                 |
+| `docs.user.betaSetup.installerHandoutSpelledOut`       | ABSENCE RED (DoD #1 input): `docs/user/beta-setup.md` exists; `SHA256SUMS` verification, `arm64` + `x64` installers (issue #27 outcome), `AppImage`, the app name                                        | `docs-consistency.test.ts` | RED-written (absence)                 |
+| `docs.readme.userVsDevelopmentSplitAndHonestStatus`    | README keeps `## Development`, links `install-macos` + `beta-setup`, and the M0/M1-era `Not usable yet.` claim is gone (acceptance reality, same discipline as D-04..D-10)                               | `docs-consistency.test.ts` | RED-written (status line still stale) |
+| `docs.readme.everyUserFileLinked`                      | mechanical sweep: every `docs/user/*.md` (≥ 5 files) is linked from README — no orphan, future files included                                                                                            | `docs-consistency.test.ts` | RED-written (dir absent)              |
+
+---
+
 ## 10. Execution log (per batch)
 
 _Appended when a batch is written/observed — RED entry first, then GREEN, mirroring
@@ -391,6 +405,17 @@ linux-ia32` / `darwin-ia32`. The verify step never even ran (it sits
   working tree at observation additionally carried the not-yet-committed
   M3-09 RED (§10 batch E entry); this commit stages the DV-65 files only,
   so CI sees a fully green state.
+
+### M3-09 RED (user docs set + README split, 2026-10-09)
+
+- Chain: prettier `docs/ src/ tests/` clean, typecheck rc=0, eslint rc=0.
+- Suite: **7 failed | 318 passed (325)** — baseline 316 → +9 tests across
+  the two committed REDs of this window; the M3-09 slice is 7 tests
+  (`docs-consistency.test.ts`, TC-POL-06) and the DV-65 slice (committed
+  separately, §11) is 2. Named REDs — the five doc files don't exist
+  (absence via existsSync-gated `userDoc`, never a raw ENOENT), README
+  still ends `Not usable yet.`, and the `docs/user/` sweep can't run.
+- e2e: not re-run (suite + docs only; unchanged at `5d61e44`, 1/1).
 - e2e: not re-run for this RED (suite + docs only; unchanged at `e08d2e5`,
   1/1).
 
