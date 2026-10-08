@@ -75,13 +75,16 @@ pattern of DV-36/DV-37.
       Evidence: RED `17b993c` (TC-PKG-05..07, observed 3 failed | 223 passed) →
       GREEN in this commit (yml amendments + Gatekeeper doc; 226 passed |
       0 failed). The actual `npm run dist` build is deferred to M2-07 (CI, DoD #1) + M2-12 (fresh machine, DoD #2).
-- [ ] **M2-06** · developer · **S** · deps: M2-05 · `todo`
+- [x] **M2-06** · developer · **S** · deps: M2-05 · `done`
       License compliance (core = **MPL-2.0** per the release artifacts — the
       BRIEF's GPL-3.0 claim was corrected 2026-10-08, evidence in
       `docs/analysis/core-pin.md`): third-party attributions + license texts
       ship inside the artifacts (`resources/licenses/` — the xray-core LICENSE,
       Electron, notable npm deps). RED: pin every listed package has its license
       file and the pack config includes the directory (M2 DoD #4).
+      Evidence: spec reconciliation `59e767d` → RED `4f76d21` (TC-PKG-08..10,
+      observed 3 failed | 226 passed) → GREEN in this commit (notices + 3
+      verbatim texts + top-level extraResources; 229 passed | 0 failed).
 
 ### Phase D — Release CI & gates
 

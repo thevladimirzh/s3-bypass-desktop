@@ -9,6 +9,14 @@ files:
 # archive, never loose files (M1 finding S5-18 recommendation).
 asar: true
 npmRebuild: false
+# M2-06 (TC-PKG-10): attributions packed into EVERY artifact — electron-
+# builder concatenates this global list with the platform extraResources
+# below (app-file matcher: global + platformSpecificBuildOptions), so it
+# composes with the core entries instead of replacing them. Directory-level
+# `from` copies the contents into Resources/licenses/ (DoD #4).
+extraResources:
+  - from: resources/licenses
+    to: licenses
 # M2-05 owner decisions (2026-10-08): the mac build is intentionally
 # UNSIGNED (no Apple Developer account, BRIEF §10) and Linux ships
 # AppImage + .deb + .rpm (BRIEF §9). The core pinned in

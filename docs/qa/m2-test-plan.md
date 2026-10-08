@@ -181,6 +181,22 @@ Observed: `Tests 3 failed | 226 passed (229)`,
 `Test Files 1 failed | 34 passed (35)`, exit 1; `npm run lint` +
 `npm run typecheck` + `npx prettier --check` exit 0.
 
+**M2-06 license attributions — GREEN** (2026-10-08): artifacts per DV-42 —
+`resources/licenses/THIRD-PARTY-NOTICES.md` (NEW: Xray-core-fedarisha under
+MPL-2.0 with the `core-pin.md` provenance pointer, Electron MIT,
+react/react-dom MIT, app = GPL-3.0) + verbatim texts
+(`xray-core-fedarisha-LICENSE.txt` copied from the `prepare:core` staging
+output — the LICENSE inside the pinned assets; `electron-LICENSE.txt` =
+`node_modules/electron/LICENSE`; `react-LICENSE.txt` = `node_modules/react/LICENSE`)
+
+- a top-level `extraResources` entry `resources/licenses` → `licenses` in
+  `electron-builder.yml` (composed with the M2-05 platform blocks — verified
+  in `app-file matcher` source). Observed: `Tests 229 passed (229)`,
+  `Test Files 35 passed (35)` — TC-PKG-08/09/10 GREEN, baseline 226/0 untouched
+  (+3 = this batch's own RED). The texts are byte-copies of their sources
+  (`cp` in the GREEN commit). `npm run lint` + `npm run typecheck` +
+  `npx prettier --check` exit 0.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 
