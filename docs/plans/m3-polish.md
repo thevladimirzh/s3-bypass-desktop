@@ -122,7 +122,7 @@ the DV-36/DV-37 pattern.
 
 ### Phase G — Beta & acceptance (DoD 1–4)
 
-- [ ] **M3-11** · owner · **—** · deps: M3-09, M3-10 · `blocked-owner-cohort`
+- [ ] **M3-11** · owner · **—** · deps: M3-09, M3-10 · `blocked-owner-cohort` (artifacts ready: `v0.1.0-beta.1` run `37848480103` green — arm64/x64 dmg + Linux 3-in-1 + SHA256SUMS; handout `docs/user/beta-setup.md`)
       Hand the beta installers + setup doc to at least one external tester
       (DoD #1); feedback triage into `docs/product/backlog.md` — BRIEF §3
       items never land on this board.

@@ -405,6 +405,25 @@ linux-ia32` / `darwin-ia32`. The verify step never even ran (it sits
   had never actually processed before.
 - Tag deleted (local + remote) per the M2-07 pattern — no tag remains.
 
+### Beta build `v0.1.0-beta.1` (M3-11 prep, 2026-10-09)
+
+- Owner picked the beta build while the cohort is pending: version
+  bump `0.0.1 → 0.1.0-beta.1` (no test pins the version — verified),
+  committed as `3f67cc2` (chain 0, **325 passed (325)**), tag
+  `v0.1.0-beta.1` pushed → release run **`37848480103` = SUCCESS on
+  all three legs** (macos-latest, ubuntu-latest, fedora container).
+- Empirical evidence (mac leg): `Build artifacts` ✓, `Verify both mac
+arch dmgs staged (issue #27)` ✓ (≥ 2 dmgs for `0.1.0-beta.1`), `SHA-256
+manifest — written then re-verified` ✓; artifacts — `artifacts-macOS`
+  309 863 535 B (arm64 + x64 dmg + SHA256SUMS), `artifacts-Linux`
+  266 383 789 B (AppImage + deb + rpm), `artifacts-fedora`
+  104 042 043 B (native rpm).
+- Handout path unchanged: `docs/user/beta-setup.md` points testers at
+  exactly these artifact names + SHA256SUMS verification. Distribution
+  stays the owner's manual step (M2-07 decision — no GitHub Release
+  published by CI). M3-11 remains `blocked-owner-cohort`; artifacts are
+  built and waiting.
+
 #### DV-65 GREEN (2026-10-09)
 
 - Chain: prettier clean (incl. the script), typecheck rc=0, eslint rc=0.
