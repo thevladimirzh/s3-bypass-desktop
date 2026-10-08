@@ -197,9 +197,17 @@ export default function App() {
   // §2.3 legal actions (plan M1-17 disabled/busy matrix): Start only from
   // `stopped`/`crashed` WITH a profile (FR-12/AC-02.1/AC-03.6 recovery),
   // Stop only while `running` (FR-13), and during `starting`/`stopping` BOTH
-  // controls are disabled (FR-18 UI half — busy, no legal action).
+  // actions are illegal (FR-18 UI half — busy, no legal action).
   const startDisabled = busy || !hasProfile || (state !== 'stopped' && state !== 'crashed');
   const stopDisabled = busy || !running;
+  // Issue #26 (owner decision, 2026-10-08): ONE large round connect toggle
+  // replaces the Start/Stop pair — enabled exactly when a §2.3 legal action
+  // exists (`startDisabled && stopDisabled` = none), with the EXACT
+  // accessible name Start/Stop the e2e smoke and the .fm drivers click
+  // (name-exact seam). The status badge (FR-24/AC-03.1) stays the
+  // authoritative text channel — the button is presentation on top of it.
+  const toggleDisabled = startDisabled && stopDisabled;
+  const showingStop = running || state === 'stopping';
 
   return (
     <main className="shell">
@@ -217,25 +225,43 @@ export default function App() {
         )}
       </section>
       {/* US-03 / FR-24: the status area — text badge (never color-only), the
-          §2.3 Start/Stop controls with their guards, and the last error as
-          selectable document text (AC-03.4/AC-03.5, FR-27 — no stacks). */}
+          §2.3 Start/Stop control (single round toggle, issue #26) with its
+          guards, and the last error as selectable document text
+          (AC-03.4/AC-03.5, FR-27 — no stacks). */}
       <section className="status tunnel">
         <h2>Tunnel</h2>
         <p className="status-badge">{STATUS_LABELS[state]}</p>
         <div className="controls">
           <button
             type="button"
-            onClick={() => runTunnelAction('startCore')}
-            disabled={startDisabled}
+            className="connect-toggle"
+            aria-label={showingStop ? 'Stop' : 'Start'}
+            onClick={() => runTunnelAction(showingStop ? 'stopCore' : 'startCore')}
+            disabled={toggleDisabled}
           >
-            Start
-          </button>
-          <button type="button" onClick={() => runTunnelAction('stopCore')} disabled={stopDisabled}>
-            Stop
+            {/* Issue #26: incy-style power glyph — decoration only; the
+                accessible name and the status badge carry the semantics
+                (never color-only, NFR-5/FR-41 precedent). */}
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M12 2v9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M7.05 6.63a7 7 0 1 0 9.9 0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
         </div>
-        {/* FR-12 (AC-02.3): Start exists but is disabled while no profile is
-            imported — the exact hint wording carries the reason. */}
+        {/* FR-12 (AC-02.3): the toggle exists but is disabled while no
+            profile is imported — the exact hint wording carries the reason. */}
         {!hasProfile && <p className="hint">{HINT_NO_PROFILE}</p>}
         {shownError !== null && (
           <div className="error" role="alert">

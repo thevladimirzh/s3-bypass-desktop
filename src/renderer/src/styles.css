@@ -33,6 +33,56 @@ body {
   background: #161c22;
 }
 
+/* Issue #26 (owner decision): the primary action is ONE large round
+   connect toggle (incy-style). Presentation only — the status badge
+   stays the authoritative text channel (FR-24/AC-03.1, never color-only),
+   and the exact accessible name Start/Stop rides the button element
+   (App.tsx aria-label), never this file. */
+.controls {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.connect-toggle {
+  width: 9rem;
+  height: 9rem;
+  border-radius: 50%;
+  border: 2px solid #3b4a5a;
+  background: #1b2430;
+  color: #6fd39a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
+}
+
+.connect-toggle svg {
+  width: 44%;
+  height: 44%;
+}
+
+.connect-toggle:hover:not(:disabled) {
+  background: #232f3d;
+}
+
+.connect-toggle:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.connect-toggle:focus-visible {
+  outline: 2px solid #4da3ff;
+  outline-offset: 3px;
+}
+
+.connect-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .profile {
   display: flex;
   flex-direction: column;

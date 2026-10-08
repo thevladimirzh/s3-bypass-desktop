@@ -90,10 +90,6 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import App from '../../src/renderer/src/App';
-// The stylesheet as TEXT for the TC-02-25 shape scan (jsdom applies no CSS);
-// `?raw` is typed by vite/client, which this web tsconfig already loads — no
-// node builtin may enter the renderer test project.
-import stylesCss from '../../src/renderer/src/styles.css?raw';
 import { DEFAULT_SOCKS_PORT } from '../../src/shared/constants';
 import type {
   AppError,
@@ -658,26 +654,11 @@ describe('Start/Stop controls — guards and busy states (FR-12, FR-13, plan M1-
       'running → the single toggle is enabled for Stop (TC-02-15 guard half)',
     ).toBe(false);
 
-    // The round + LARGE shape (issue #26) — a stylesheet source scan, since
-    // jsdom applies no CSS (structural-pin precedent: TC-05-15 / TC-01-15).
-    const rule = stylesCss.match(/\.connect-toggle\s*\{([^}]*)\}/);
-    expect(rule, 'styles.css must define the .connect-toggle rule').not.toBeNull();
-    const body = rule?.[1] ?? '';
-    expect(body, 'issue #26: the toggle is a CIRCLE (border-radius: 50%)').toMatch(
-      /border-radius:\s*50%/,
-    );
-    const width = body.match(/(?:^|[^-\w])width:\s*([\d.]+)rem/);
-    const height = body.match(/(?:^|[^-\w])height:\s*([\d.]+)rem/);
-    expect(width, '.connect-toggle pins a rem width (square canvas)').not.toBeNull();
-    expect(height, '.connect-toggle pins a rem height (square canvas)').not.toBeNull();
-    expect(
-      Number(width?.[1]),
-      'issue #26: width and height must be EQUAL — the control is a circle',
-    ).toBe(Number(height?.[1]));
-    expect(
-      Number(width?.[1]),
-      'issue #26: LARGE — at least 6rem across (incy-style, not a small pill)',
-    ).toBeGreaterThanOrEqual(6);
+    // The round + LARGE SHAPE half of TC-02-25 (issue #26) lives in the
+    // sibling structural scan tests/unit/renderer-controls-styles.test.ts —
+    // the stylesheet cannot be read from this web-tsconfig project (vitest
+    // processes CSS imports to empty strings, and no node builtin may enter
+    // the renderer test project); both halves share the one TC ID.
   });
 });
 
