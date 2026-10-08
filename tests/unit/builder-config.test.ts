@@ -273,3 +273,28 @@ describe('TC-POL-04 — app icon generated in-repo + naming pin (M3-07)', () => 
     ).toContain('build-icon.mjs');
   });
 });
+
+/**
+ * TC-PKG-23 (M3-11 beta-build prep) — mac dmg names must carry the arch.
+ *
+ * Observed on release run 37848480103 (tag v0.1.0-beta.1): electron-builder
+ * appends the arch suffix only for the NON-default arch, so the Intel build
+ * landed as `S3 Bypass Desktop-0.1.0-beta.1.dmg` (verified `x86_64` by
+ * `lipo -archs` on the mounted app) while Apple Silicon got the explicit
+ * `-arm64`. `docs/user/beta-setup.md` promises testers `-x64.dmg` (the
+ * issue #27 language) — an explicit `artifactName` makes reality match the
+ * handout instead of amending the doc pins.
+ */
+describe('TC-PKG-23 — mac dmg names carry the arch (M3-11 beta handout)', () => {
+  it('builderConfig.macArtifactNameIncludesArch', () => {
+    const yml = repoFile('electron-builder.yml');
+    const mac = live(blockOf(yml, 'mac'));
+    expect(
+      mac.some((line) => line.trim() === 'artifactName: ${productName}-${version}-${arch}.dmg'),
+      'M3-11: the mac: block must declare an arch-explicit artifactName — ' +
+        'electron-builder drops the suffix for the default arch, which produced ' +
+        'an archless Intel dmg (run 37848480103) that beta-setup.md cannot ' +
+        'reference unambiguously (ABSENCE RED)',
+    ).toBe(true);
+  });
+});

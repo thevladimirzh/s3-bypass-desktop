@@ -91,6 +91,7 @@ discipline as `m1-test-plan.md` §14).
 | TC-PKG-20 | `builderConfig.afterPackGateWired`                                                             | issue #20; the pack gate is wired fail-closed                                                                         | unit (raw-text)   | electron-builder.yml          | RED-written (issue #20; **new**, DV-60)      |
 | TC-PKG-21 | `releaseWorkflow.macBuildsBothArchDmgs`                                                        | issue #27 (M3-10); mac leg builds arm64 **and** x64 dmgs, ≥ 2 staged, per-arch core                                   | unit (raw-text)   | .github/workflows/release.yml | RED-written (issue #27; **new**, M3 batch F) |
 | TC-PKG-22 | `afterPack.archEnumToStagedTargetName` + `afterPack.defaultEntryResolvesTargetFromContextArch` | DV-65 (validation run 37846078455); the `Arch` enum → staged-target mapping on the default `afterPack(context)` entry | unit (behavioral) | scripts/after-pack-verify.mjs | RED-written (DV-65; **new**, M3 batch F)     |
+| TC-PKG-23 | `builderConfig.macArtifactNameIncludesArch`                                                    | M3-11 beta handout; mac dmg names carry `-arm64`/`-x64` (issue #27 language) instead of an archless default-arch file | unit (raw-text)   | electron-builder.yml          | RED-written (M3-11 beta prep; **new**)       |
 
 ## 7. Real-binary integration (M2-10)
 
