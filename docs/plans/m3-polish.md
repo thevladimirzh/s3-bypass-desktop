@@ -104,7 +104,7 @@ the DV-36/DV-37 pattern.
 
 ### Phase E — User documentation (M3 deliverable 3 + DoD #1 input)
 
-- [ ] **M3-09** · qa+project-manager · **M** · deps: M3-04, M3-06 · `todo`
+- [x] **M3-09** · qa+project-manager · **M** · deps: M3-04, M3-06 · `done` (RED `43393dc` + GREEN, 2026-10-09 — 325/325, TC-POL-06)
       `docs/user/` — install (macOS unsigned + Gatekeeper, Linux
       AppImage/deb/rpm), first profile, troubleshooting, manual system-proxy
       hints (127.0.0.1:10808); the **beta setup doc** handed to the tester

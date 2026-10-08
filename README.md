@@ -4,11 +4,24 @@ Desktop client (macOS + Linux) for the fedarisha S3 tunnel: traffic is exchanged
 as objects through an S3-compatible bucket, while a supervised Xray-core binary
 (`Fedarisha/Xray-core-fedarisha`) provides the local SOCKS proxy.
 
-**Status:** M0 done (scaffold, CI green on both OS legs, security spot-check PASS). M1 — MVP core loop in progress. Not usable yet.
+**Status:** M1 and M2 accepted; M3 (polish + beta) in progress — installers
+build unsigned (macOS: a Control-click → Open step on first launch). Testers
+start at [docs/user/beta-setup.md](docs/user/beta-setup.md).
 
 ## Idea in one line
 
 Import a config — press Start — the internet works.
+
+## Install (beta)
+
+- macOS (unsigned build + Gatekeeper): [docs/user/install-macos.md](docs/user/install-macos.md)
+- Linux (AppImage / .deb / .rpm): [docs/user/install-linux.md](docs/user/install-linux.md)
+- Beta tester setup (verify SHA256SUMS, report): [docs/user/beta-setup.md](docs/user/beta-setup.md)
+
+## First run & troubleshooting
+
+- Import a profile and start the tunnel: [docs/user/first-profile.md](docs/user/first-profile.md)
+- Logs, manual proxy 127.0.0.1:10808, crashes: [docs/user/troubleshooting.md](docs/user/troubleshooting.md)
 
 ## Development
 

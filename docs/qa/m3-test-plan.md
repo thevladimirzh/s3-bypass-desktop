@@ -416,6 +416,27 @@ linux-ia32` / `darwin-ia32`. The verify step never even ran (it sits
   (absence via existsSync-gated `userDoc`, never a raw ENOENT), README
   still ends `Not usable yet.`, and the `docs/user/` sweep can't run.
 - e2e: not re-run (suite + docs only; unchanged at `5d61e44`, 1/1).
+
+### M3-09 GREEN (user docs set + README split, 2026-10-09)
+
+- Chain: prettier `docs/ src/ tests/ README.md` clean, typecheck rc=0,
+  eslint rc=0.
+- Implementation:
+  - `docs/user/` (five new docs): `install-macos.md` (unsigned +
+    Control-click → Open, links the dedicated Gatekeeper doc — the
+    gate stays ON, never "disable it"), `install-linux.md` (AppImage
+    with the real `chmod +x` + .deb + .rpm), `first-profile.md`
+    (quotes the shipped hint/status words verbatim — the TC-POL-05
+    tie-in), `troubleshooting.md` (manual **SOCKS 127.0.0.1:10808`,
+`Copy logs`support path),`beta-setup.md` (the DoD #1 handout:
+    artifact table incl. both mac archs from issue #27, SHA256SUMS
+    verification, reporting checklist);
+  - README: honest M3/beta status line replaces the M0/M1
+    `Not usable yet.` claim; new **Install (beta)** + **First run &
+    troubleshooting** sections link all five docs; **Development**
+    section untouched.
+- Result: **325 passed (325)** / 44 files — all 7 named REDs resolved.
+  e2e: 1 passed (1).
 - e2e: not re-run for this RED (suite + docs only; unchanged at `e08d2e5`,
   1/1).
 
