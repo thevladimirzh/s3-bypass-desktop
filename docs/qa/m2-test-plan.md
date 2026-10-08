@@ -29,7 +29,7 @@ environment · `deferred-M3` = out of M2 scope per spec note.
 | 3   | Bundled-core path resolution: packaged > `CORE_BINARY_PATH` > honest error          | M2-04       | `TC-02-16..`, `TC-02-20`, `TC-PKG-04` |
 | 4   | electron-builder config: targets, unsigned macOS, core in resources, Gatekeeper doc | M2-05       | `TC-PKG-05..07`                       |
 | 5   | License attributions shipped inside the artifacts (core = MPL-2.0)                  | M2-06       | `TC-PKG-08..10`                       |
-| 6   | Release CI: tag → artifacts + SHA-256 manifest; coverage & e2e jobs land            | M2-07/M2-08 | `TC-PKG-11..15` (+ L3, M2-08)         |
+| 6   | Release CI: tag → artifacts + SHA-256 manifest; coverage & e2e jobs land            | M2-07/M2-08 | `TC-PKG-11..17` (+ L3, M2-08)         |
 | 7   | Real-binary integration (strategy D-4) + authoritative coverage number (G-05)       | M2-10       | `TC-02-..` / `TC-03-..` (+ L3)        |
 | 8   | Issue #19 crash-path surfacing (FR-35 quit-time `E-PLAT-003`, tray freshness)       | M2-11       | `TC-04-20..`, `TC-05-24..`            |
 | 9   | Fresh-machine install DoD + the Q9-waived M1 desktop manual rows                    | M2-12       | `L4` (checklist)                      |
@@ -77,13 +77,15 @@ discipline as `m1-test-plan.md` §14).
 
 ## 6. Release CI & gates (M2-07 / M2-08)
 
-| TC ID     | Test title                                   | AC / criterion                                           | Layer           | Fixture                       | Status                                  |
-| --------- | -------------------------------------------- | -------------------------------------------------------- | --------------- | ----------------------------- | --------------------------------------- |
-| TC-PKG-11 | `releaseWorkflow.tagMatrixBuildsAndVerifies` | M2-07; DoD #1 (verify at build)                          | unit (raw-text) | .github/workflows/release.yml | RED-written (M2-07; **new**, DV-43)     |
-| TC-PKG-12 | `ciWorkflow.coverageJobLands`                | M2-07; G-05 (coverage ≥80 in CI)                         | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-07; **new**, DV-43)     |
-| TC-PKG-13 | `ciWorkflow.e2eJobPerProposal`               | M2-07; e2e-ci-proposal rollout #1                        | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-07; **new**, DV-43)     |
-| TC-PKG-14 | `releaseManifest.writeVerifyAndTamper`       | M2-07; DoD #1 (manifest is verified)                     | unit (CLI, tmp) | scripts/release-manifest.mjs  | RED-written (M2-07; **new**, DV-43)     |
-| TC-PKG-15 | `releaseWorkflow.debOnUbuntuRpmOnFedora`     | M2-07 follow-up; distro split (owner request 2026-10-08) | unit (raw-text) | .github/workflows/release.yml | RED-written (follow-up; **new**, DV-47) |
+| TC ID     | Test title                                    | AC / criterion                                           | Layer           | Fixture                       | Status                                  |
+| --------- | --------------------------------------------- | -------------------------------------------------------- | --------------- | ----------------------------- | --------------------------------------- |
+| TC-PKG-11 | `releaseWorkflow.tagMatrixBuildsAndVerifies`  | M2-07; DoD #1 (verify at build)                          | unit (raw-text) | .github/workflows/release.yml | RED-written (M2-07; **new**, DV-43)     |
+| TC-PKG-12 | `ciWorkflow.coverageJobLands`                 | M2-07; G-05 (coverage ≥80 in CI)                         | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-07; **new**, DV-43)     |
+| TC-PKG-13 | `ciWorkflow.e2eJobPerProposal`                | M2-07; e2e-ci-proposal rollout #1                        | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-07; **new**, DV-43)     |
+| TC-PKG-14 | `releaseManifest.writeVerifyAndTamper`        | M2-07; DoD #1 (manifest is verified)                     | unit (CLI, tmp) | scripts/release-manifest.mjs  | RED-written (M2-07; **new**, DV-43)     |
+| TC-PKG-15 | `releaseWorkflow.debOnUbuntuRpmOnFedora`      | M2-07 follow-up; distro split (owner request 2026-10-08) | unit (raw-text) | .github/workflows/release.yml | RED-written (follow-up; **new**, DV-47) |
+| TC-PKG-16 | `ci.auditLegsBlockProdAndInformHigh`          | M2-08; issue #2 optional CI leg; S5-13 prod gate         | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-08; **new**)            |
+| TC-PKG-17 | `auditEvidence.acceptedRiskNoteSatisfiesGate` | M2-08; issue #2 evidence gate (M0-19 S4-5)               | unit (raw-text) | docs/qa/security-m2-audit.md  | RED-written (M2-08; **new**)            |
 
 ## 7. Real-binary integration (M2-10)
 
@@ -374,6 +376,39 @@ CI on the fix `37717796975` success (and `37717022842` success on
 `7f5554f`). Test tag `v0.0.0-ci-test` deleted (local + remote) after
 observation; temp files cleaned. Batch history: RED `67a4d74` → GREEN
 `7f5554f` → fix `4a0f2e2` (DV-50) — **follow-up done**.
+
+**M2-08 RED — live npm audit evidence + CI audit legs (TC-PKG-16/17)**
+(2026-10-08): scope recon BEFORE writing (issue #2 + M0-19 S4-5 + M1
+S5-13), live captures on node v22.12.0 / npm 10.9.0:
+
+- `npm audit` (full tree) → **exit 1, 8 moderate**. Root = sprintf-js
+  (`GHSA-hp3w-g68c-fv3c`, `CVE-2026-97058`, published 2026-09-24, CVSS
+  6.9, affected `<= 1.1.3`, **Patched versions: none** — installed
+  1.1.3 IS the latest release); the other 7 are pure dependents
+  (roarr → global-agent → @electron/get → app-builder-lib →
+  dmg-builder / electron-builder / electron-builder-squirrel-windows).
+- `npm audit --omit=dev` → **exit 0, `found 0 vulnerabilities`**
+  (production deps = react + react-dom only).
+- `npm audit --audit-level=high` → **exit 0 → 0 high / 0 critical →
+  nothing to triage into GitHub issues** (board row asks for highs only).
+- Remediation check: `npm outdated` — installed chain (26.17.0) not
+  behind registry latest (26.15.3); `npm audit fix` has no
+  non-breaking path and `--force` would DOWNGRADE electron-builder to
+  26.5.0 (breaking) → rejected. Upstream patch for the GHSA does not
+  exist → issue #2 option 2 (accepted-risk note) is the only viable
+  path; S5-13's CI recommendation lands as the second leg.
+
+Wrote the new `tests/unit/audit-gate.test.ts`: **TC-PKG-16** (ci.yml —
+blocking `npm audit --omit=dev` WITHOUT continue-on-error, exactly one
+step; informational `npm audit --audit-level=high` WITH
+`continue-on-error: true`, exactly one step) and **TC-PKG-17** (the
+evidence doc must pin GHSA/CVE ids, both live counts,
+`Patched versions: none`, `devDependencies`, `files: out/**`, the
+accepted-risk note, re-evaluation triggers, and both CI legs).
+**Observed RED**: `Tests 2 failed | 234 passed (236)` / `Test Files 1
+failed | 36 passed (37)` — ci.yml has zero audit steps (0 blocks),
+evidence doc ENOENT; baseline 234/0 untouched (same 2 VPN excludes);
+`typecheck` 0 and `lint` 0 by direct exit capture (DV-45 method).
 
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
