@@ -410,6 +410,25 @@ failed | 36 passed (37)` — ci.yml has zero audit steps (0 blocks),
 evidence doc ENOENT; baseline 234/0 untouched (same 2 VPN excludes);
 `typecheck` 0 and `lint` 0 by direct exit capture (DV-45 method).
 
+**M2-08 final — evidence landed, both CI legs green (2026-10-08)**:
+GREEN `96cc311` pushed → CI run `37719728001` **all 4 jobs success**
+(`checks` ubuntu + macos, `coverage`, `e2e smoke`), and the checks-job
+step list confirms `Run npm audit --omit=dev: success` +
+`Run npm audit --audit-level=high: success` — both gates are live on
+every push. Local GREEN observed first: `Tests 236 passed (236)` /
+`Test Files 37 passed (37)`, chain 0/0/0/0 (direct capture), and both
+audit commands exit 0 — the exact invocations CI runs. Issue #2's
+three asks: (1) exact advisory list attached verbatim in
+`docs/qa/security-m2-audit.md`; (2) upgrade path assessed — NONE
+exists (`Patched versions: none`, installed = latest,
+`audit fix --force` = breaking downgrade → rejected) → **accepted-risk
+note recorded** with 3 re-evaluation triggers; (3) informational CI
+leg added (plus S5-13's blocking prod leg). Triage: **0 high /
+0 critical → 0 new issues** (the board's "triage highs" is a no-op by
+the data). Batch: RED `846daa2` → GREEN `96cc311` → docs close —
+**done**; issue #2 close comment goes through the owner per the
+text-via-question rule.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 

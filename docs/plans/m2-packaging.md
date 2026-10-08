@@ -118,10 +118,20 @@ pattern of DV-36/DV-37.
       `37717801328` **all 3 legs green** — artifacts-macOS 152 313 266 B,
       artifacts-Linux 266 420 579 B, artifacts-fedora 104 047 763 B; CI on
       the fix `37717796975` success; test tag deleted after observation.
-- [ ] **M2-08** · devops · **S** · deps: M2-07 · `todo`
+- [x] **M2-08** · devops · **S** · deps: M2-07 · `done`
       Live `npm audit` evidence for the packaging chain (issue #2, M0-19 S4-5):
       record the output in `docs/qa/security-m2-audit.md`, triage highs into
       GitHub issues.
+      Evidence: RED `846daa2` (TC-PKG-16..17, 2 observed failures) → GREEN
+      `96cc311` (236 passed / 37 files) — blocking `npm audit --omit=dev` +
+      informational `npm audit --audit-level=high` (`continue-on-error: true`)
+      in ci.yml, both pinned by the new `tests/unit/audit-gate.test.ts`;
+      `docs/qa/security-m2-audit.md` carries the verbatim live outputs (8
+      moderate = sprintf-js `GHSA-hp3w-g68c-fv3c` / CVE-2026-97058, Patched:
+      none, dev-only) + accepted-risk note (issue #2 option 2, 3
+      re-evaluation triggers). CI `37719728001` all 4 jobs green with both
+      audit steps success; **0 highs → 0 issues to triage**; issue #2
+      evidence satisfied (close comment pending owner approval).
 - [ ] **M2-09** · cybersecurity · **M** · deps: M2-05, M2-07 · `todo`
       Security review before external distribution (M2 DoD #3): supply chain
       (pin ↔ hash ↔ artifact), S3 key handling in the packaged app, IPC surface
