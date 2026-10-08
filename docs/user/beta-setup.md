@@ -6,13 +6,13 @@ intact, and report what you find.
 
 ## 1. Download the right installer
 
-| Platform             | Artifact                                |
-| -------------------- | --------------------------------------- |
-| macOS, Apple Silicon | `S3 Bypass Desktop-<version>-arm64.dmg` |
-| macOS, Intel         | `S3 Bypass Desktop-<version>-x64.dmg`   |
-| Linux, any distro    | `S3 Bypass Desktop-<version>.AppImage`  |
-| Debian / Ubuntu      | `S3 Bypass Desktop-<version>.deb`       |
-| Fedora / RHEL        | `S3 Bypass Desktop-<version>.rpm`       |
+| Platform             | Artifact                                 |
+| -------------------- | ---------------------------------------- |
+| macOS, Apple Silicon | `S3 Bypass Desktop-<version>-arm64.dmg`  |
+| macOS, Intel         | `S3 Bypass Desktop-<version>-x64.dmg`    |
+| Linux, any distro    | `S3 Bypass Desktop-<version>.AppImage`   |
+| Debian / Ubuntu      | `s3-bypass-desktop_<version>_amd64.deb`  |
+| Fedora / RHEL        | `s3-bypass-desktop-<version>.x86_64.rpm` |
 
 ## 2. Verify the download
 

@@ -23,7 +23,7 @@ this is the one step downloads never do for you.
 ## Debian / Ubuntu (.deb)
 
 ```bash
-sudo dpkg -i "S3 Bypass Desktop-<version>.deb"
+sudo dpkg -i s3-bypass-desktop_<version>_amd64.deb
 ```
 
 If `dpkg` complains about a missing dependency:
@@ -35,9 +35,9 @@ sudo apt-get install -f
 ## Fedora / RHEL (.rpm)
 
 ```bash
-sudo rpm -i "S3 Bypass Desktop-<version>.rpm"
+sudo rpm -i s3-bypass-desktop-<version>.x86_64.rpm
 # or
-sudo dnf install "./S3 Bypass Desktop-<version>.rpm"
+sudo dnf install ./s3-bypass-desktop-<version>.x86_64.rpm
 ```
 
 ## Next

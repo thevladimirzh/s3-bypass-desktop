@@ -32,6 +32,10 @@ extraResources:
 # docs/product/macos-gatekeeper.md (TC-PKG-07).
 mac:
   category: public.app-category.utilities
+  # M3-11 / TC-PKG-23: arch-explicit dmg name — electron-builder otherwise
+  # drops the suffix for the default arch (the Intel dmg landed archless on
+  # run 37848480103 while beta-setup.md promises -x64.dmg).
+  artifactName: ${productName}-${version}-${arch}.dmg
   # Owner decision 2026-10-08 (BRIEF §10): no Apple Developer account —
   # declare the build unsigned instead of configuring a signing identity.
   identity: null

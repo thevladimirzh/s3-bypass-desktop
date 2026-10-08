@@ -416,8 +416,9 @@ linux-ia32` / `darwin-ia32`. The verify step never even ran (it sits
 arch dmgs staged (issue #27)` ✓ (≥ 2 dmgs for `0.1.0-beta.1`), `SHA-256
 manifest — written then re-verified` ✓; artifacts — `artifacts-macOS`
   309 863 535 B (arm64 + x64 dmg + SHA256SUMS), `artifacts-Linux`
-  266 383 789 B (AppImage + deb + rpm), `artifacts-fedora`
-  104 042 043 B (native rpm).
+  266 383 789 B (AppImage + deb + SHA256SUMS — the rpm ships in
+  `artifacts-fedora`), `artifacts-fedora` 104 042 043 B (native rpm +
+  SHA256SUMS).
 - Handout path unchanged: `docs/user/beta-setup.md` points testers at
   exactly these artifact names + SHA256SUMS verification. Distribution
   stays the owner's manual step (M2-07 decision — no GitHub Release
