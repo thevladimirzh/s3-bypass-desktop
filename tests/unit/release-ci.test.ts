@@ -46,15 +46,19 @@
  *
  *   3. `scripts/release-manifest.mjs` + package.json `release:manifest`:
  *      CLI `node scripts/release-manifest.mjs <dir>` —
- *        - writes `<dir>/SHA256SUMS.txt`: one line per top-level FILE of
- *          `<dir>`, sorted by filename, format `<sha256>  <filename>`; the
- *          manifest file itself and subdirectories are skipped;
- *        - immediately re-verifies by re-hashing: all match → stdout mentions
- *          `OK` and the file count, exit 0;
- *        - any changed/missing file → stderr `MISMATCH` naming the file and
- *          the expected/actual digests, exit 1;
- *        - anything other than exactly one positional argument → usage on
- *          stderr, exit 2.
+ *        - FIRST RUN (no manifest yet): writes `<dir>/SHA256SUMS.txt` —
+ *          one line per top-level FILE of `<dir>`, sorted by filename,
+ *          format `<sha256>  <filename>`; the manifest file itself and
+ *          subdirectories are skipped — then re-reads it and re-hashes
+ *          the files against it (drift → exit 1);
+ *        - RE-RUN (manifest exists): verifies the CURRENT files against
+ *          the EXISTING manifest — all match → stdout mentions `OK` and
+ *          the file count, exit 0; any changed/missing/unlisted file →
+ *          stderr `MISMATCH` naming the file and the expected/actual
+ *          digests, exit 1, and the manifest is never rewritten on
+ *          drift (it is the record of evidence);
+ *        - anything other than exactly one positional argument (or an
+ *          unreadable dir) → usage on stderr, exit 2.
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * Observed RED: TC-PKG-11 fails on the absent release workflow, TC-PKG-12/13
@@ -215,18 +219,26 @@ describe('TC-PKG-14 — manifest CLI writes, verifies and fails loudly (M2-07)',
       ).toBe(0);
       expect(first.stdout, 'M2-07: the CLI must report success on stdout').toMatch(/OK/);
       const manifest = readFileSync(join(dir, 'SHA256SUMS.txt'), 'utf8');
+      const manifestLines = manifest.split('\n').filter((line) => line !== '');
       expect(
-        manifest,
-        'M2-07: the manifest must list every top-level file (subdirectories are ' +
-          'skipped, the manifest itself is never hashed)',
-      ).toMatch(/^[0-9a-f]{64} {2}alpha\.dmg$[0-9a-f]{64} {2}beta\.deb$/ms);
+        manifestLines,
+        'M2-07: the manifest must list every top-level file — one line per file, ' +
+          'sorted by filename, `<sha256>  <name>` (subdirectories are skipped, ' +
+          'the manifest itself is never hashed)',
+      ).toEqual([
+        expect.stringMatching(/^[0-9a-f]{64} {2}alpha\.dmg$/),
+        expect.stringMatching(/^[0-9a-f]{64} {2}beta\.deb$/),
+      ]);
+      expect(manifest, 'M2-07: subdirectories are never hashed').not.toContain('subfolder');
+      expect(manifest, 'M2-07: the manifest never hashes itself').not.toContain('SHA256SUMS.txt');
 
       writeFileSync(join(dir, 'alpha.dmg'), 'tampered-payload');
       const second = runManifest(dir);
       expect(
         second.status,
         'M2-07/DoD #1: a tampered artifact must make the verification FAIL ' +
-          '(exit 1) — the manifest is re-hashed, never trusted as written',
+          '(exit 1) — a re-run verifies the files against the EXISTING manifest ' +
+          'record, never blindly rewriting it',
       ).toBe(1);
       expect(
         second.stderr,

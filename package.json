@@ -21,7 +21,8 @@
     "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts",
     "dist": "electron-builder",
     "verify:core-pin": "node scripts/verify-core-pin.mjs",
-    "prepare:core": "node scripts/prepare-core.mjs"
+    "prepare:core": "node scripts/prepare-core.mjs",
+    "release:manifest": "node scripts/release-manifest.mjs"
   },
   "dependencies": {
     "react": "^19.3.0",

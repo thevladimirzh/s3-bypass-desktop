@@ -36,3 +36,51 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+
+  # M2-07 / G-05: the coverage gate lands here after the authoritative
+  # number was measured first (84.59% lines, full suite, probe run
+  # 37711514257 — m2-test-plan §10/DV-43) >= thresholds.lines 80.
+  coverage:
+    name: coverage (>=80% lines)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:coverage
+
+  # M2-07 / docs/qa/e2e-ci-proposal.md rollout #1: the macOS leg first
+  # (locally verified environment, DV-31). The Linux leg lands in its own
+  # batch behind the keyring/safeStorage verification the proposal
+  # prescribes (R-5) — TC-PKG-13 pins its absence until then. Do NOT skip
+  # the Electron binary download in this job: it needs the real binary
+  # (only PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD is set below).
+  e2e:
+    name: e2e smoke (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1' # _electron drives the local Electron binary
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Port preflight (suite also fails loudly on a held port)
+        run: node -e 'const s=require("node:net").connect({port:10808,host:"127.0.0.1"});s.on("connect",()=>{console.error("127.0.0.1:10808 held on runner");process.exit(1)});s.on("error",()=>process.exit(0))'
+      - name: Smoke E2E (macOS)
+        run: npm run test:e2e

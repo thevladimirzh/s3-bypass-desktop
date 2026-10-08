@@ -1,0 +1,58 @@
+name: Release
+
+# M2-07 (board Phase D, DoD #1): pushing a vX.Y.Z tag builds the artifacts
+# on both target platforms, re-verifies the pinned core digests at build
+# time (npm run prepare:core — docs/analysis/core-pin.md), writes AND
+# re-verifies release/SHA256SUMS.txt (npm run release:manifest), then
+# uploads the artifacts + manifest. Publishing to a GitHub Release is NOT
+# part of this workflow (acceptance keeps distribution a manual step).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Stage the pinned core (SHA-256 verified against docs/analysis/core-pin.md — DoD #1)
+        run: npm run prepare:core
+      - name: Build the app (electron-vite — the out/ dir must exist on a fresh runner)
+        run: npm run build
+      - name: rpm tooling (Linux leg — electron-builder's rpm target)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+      - name: Build artifacts (electron-builder)
+        run: npm run dist
+      - name: SHA-256 manifest — written then re-verified (DoD #1)
+        run: npm run release:manifest -- release
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: artifacts-${{ runner.os }}
+          path: |
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+            release/*.rpm
+            release/SHA256SUMS.txt
+          if-no-files-found: error

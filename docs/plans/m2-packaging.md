@@ -88,12 +88,19 @@ pattern of DV-36/DV-37.
 
 ### Phase D — Release CI & gates
 
-- [ ] **M2-07** · devops · **M** · deps: M2-05 · `todo`
+- [x] **M2-07** · devops · **M** · deps: M2-05 · `done`
       Release workflow: push a tag → matrix (macos-latest, ubuntu-latest) builds the
       artifacts and writes a SHA-256 manifest verified at build time (M2 DoD #1).
       Land the two M1 deferrals into regular CI in the same batch: the **coverage
       job** with `thresholds.lines: 80` (G-05) and the **e2e job** per
-      `docs/qa/e2e-ci-proposal.md`.
+      `docs/qa/e2e-ci-proposal.md` (rollout #1 = macOS leg; the Linux leg is pinned
+      as absent until its safeStorage verification — its own batch).
+      Evidence: G-05 measured BEFORE the gate landed — CI full-suite **84.59 %
+      lines** (ubuntu, probe run `37711514257`, full suite green) ≥ 80 → RED
+      `53c052e` (TC-PKG-11..14, observed 4 failed | 229 passed) → GREEN in this
+      commit (`release.yml` + `coverage`/`e2e` jobs + `release-manifest.mjs`;
+      233 passed | 0 failed; RED-test correction DV-44; G-05 closed in
+      acceptance-m1-27.md).
 - [ ] **M2-08** · devops · **S** · deps: M2-07 · `todo`
       Live `npm audit` evidence for the packaging chain (issue #2, M0-19 S4-5):
       record the output in `docs/qa/security-m2-audit.md`, triage highs into
