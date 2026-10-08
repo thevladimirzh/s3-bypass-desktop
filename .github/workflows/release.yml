@@ -43,7 +43,10 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y rpm
       - name: Build artifacts (electron-builder)
-        run: npm run dist
+        # --publish never: on a tag electron-builder implicitly publishes
+        # to a GitHub Release (needs GH_TOKEN) — this workflow uploads
+        # artifacts itself, publishing stays manual (BRIEF/acceptance).
+        run: npm run dist -- --publish never
       - name: SHA-256 manifest — written then re-verified (DoD #1)
         run: npm run release:manifest -- release
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

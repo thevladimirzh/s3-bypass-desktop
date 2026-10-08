@@ -6,7 +6,7 @@
   "main": "out/main/index.js",
   "private": true,
   "license": "GPL-3.0-or-later",
-  "author": "vladimir-opencode-agent[bot]",
+  "author": "vladimir-opencode-agent[bot] <vladimir-opencode-agent[bot]@users.noreply.github.com>",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
