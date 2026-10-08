@@ -126,7 +126,7 @@ the DV-36/DV-37 pattern.
       Hand the beta installers + setup doc to at least one external tester
       (DoD #1); feedback triage into `docs/product/backlog.md` — BRIEF §3
       items never land on this board.
-- [ ] **M3-12** · cybersecurity · **S** · deps: M3-04, M3-06, M3-10 · `todo`
+- [x] **M3-12** · cybersecurity · **S** · deps: M3-04, M3-06, M3-10 · `done` (PASS 2026-10-09 — `security-m3-12.md`: 0 crit/high/med, 1 low S7-1 fixed-verified (DV-65), S6-1 CLOSED; in-session review, cybersecurity subagent unavailable)
       Security re-review before external distribution (DoD #2 gate): error
       surfaces, IPC surface, supply chain — deltas since `security-m2-09.md`.
 - [ ] **M3-13** · project-manager · **S** · deps: M3-11, M3-12 · `todo`
