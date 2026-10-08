@@ -375,6 +375,22 @@ linux-ia32` / `darwin-ia32`. The verify step never even ran (it sits
   resolution (arch 0 → `linux-ia32` fail-closed) → GREEN fixes the
   table + exports the seam → tag deleted and re-pushed; the empirical
   re-run outcome is appended below.
+
+#### DV-65 GREEN (2026-10-09)
+
+- Chain: prettier clean (incl. the script), typecheck rc=0, eslint rc=0.
+- Fix (`scripts/after-pack-verify.mjs`): `ARCH_BY_ENUM` realigned to
+  `builder-util/out/arch.d.ts` (`0: ia32, 1: x64, 2: armv7l, 3: arm64,
+4: universal`), the phantom `armv6l`/`s390x`/`riscv64` enum rows
+  dropped (not in the Arch enum — the string passthrough still accepts
+  asset-style names, unknown numeric enums still throw), and `archName`
+  exported as the TC-PKG-22 seam. The `universal` row resolves to a
+  never-staged target → the gate fails closed on it, by design.
+- Result (file-scoped): **13 passed (13)** in
+  `core-staging-gate.test.ts` — both TC-PKG-22 REDs resolved. The full
+  working tree at observation additionally carried the not-yet-committed
+  M3-09 RED (§10 batch E entry); this commit stages the DV-65 files only,
+  so CI sees a fully green state.
 - e2e: not re-run for this RED (suite + docs only; unchanged at `e08d2e5`,
   1/1).
 

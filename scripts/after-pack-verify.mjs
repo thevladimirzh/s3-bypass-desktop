@@ -32,18 +32,23 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PIN_DOC = join(ROOT, 'docs', 'analysis', 'core-pin.md');
 const MANIFESTS_DIR = join(ROOT, 'core-bin', '.manifests');
 
-/** electron-builder `Arch` enum (builder-util) → our staged target suffix. */
+/**
+ * electron-builder `Arch` enum (builder-util/out/arch.d.ts) → our staged
+ * target suffix. DV-65 / TC-PKG-22: the previous table NEVER matched the
+ * real enum (it read `1 → ia32`, i.e. every x64 build), so the validation
+ * run 37846078455 failed all legs at this gate. Exported for the row-by-row
+ * pin; the string passthrough below still accepts asset-style names
+ * (`x86_64`), and anything unknown stays fail-closed.
+ */
 const ARCH_BY_ENUM = {
-  0: 'x64',
-  1: 'ia32',
+  0: 'ia32',
+  1: 'x64',
   2: 'armv7l',
   3: 'arm64',
-  4: 'armv6l',
-  6: 's390x',
-  7: 'riscv64',
+  4: 'universal',
 };
 
-function archName(arch) {
+export function archName(arch) {
   if (typeof arch === 'string') return arch === 'x86_64' ? 'x64' : arch;
   const name = ARCH_BY_ENUM[arch];
   if (name === undefined) throw new Error(`core pack gate: unknown arch ${arch}`);
