@@ -37,6 +37,20 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+      # M2-08 / issue #2 (M1 security review S5-13): the PRODUCTION
+      # tree audit is a BLOCKING gate — zero advisories may reach the
+      # shipped dependency set (react/react-dom today). Pinned by
+      # TC-PKG-16: this step must never carry continue-on-error.
+      - run: npm audit --omit=dev
+
+      # M2-08 / issue #2: the informational dev-chain audit the issue
+      # calls optional, made real. NON-BLOCKING by contract ("non-
+      # blocking informational leg"): highs in the dev-only packaging
+      # chain (electron-builder and friends — see
+      # docs/qa/security-m2-audit.md) report but never redden CI.
+      - run: npm audit --audit-level=high
+        continue-on-error: true
+
   # M2-07 / G-05: the coverage gate lands here after the authoritative
   # number was measured first (84.59% lines, full suite, probe run
   # 37711514257 — m2-test-plan §10/DV-43) >= thresholds.lines 80.
