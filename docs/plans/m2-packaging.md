@@ -110,8 +110,14 @@ pattern of DV-36/DV-37.
       fix `37714274378` success; test tag deleted after observation.
       Follow-up (owner request 2026-10-08): distro split — `.deb`/`.AppImage`
       stay on ubuntu, the `.rpm` moves to a pinned **fedora:46 container**
-      (native rpmbuild; TC-PKG-15, DV-47) — RED/GREEN + tag validation in the
-      follow-up commits.
+      (TC-PKG-15, DV-47) — RED `67a4d74` → GREEN `7f5554f` (the ubuntu leg
+      then built deb+AppImage with zero rpm tooling — the per-leg `--linux`
+      target override empirically proven) → fedora leg failed on run
+      `37717025643` (fpm's bundled ruby links libcrypt.so.1, Fedora ships
+      only .so.2 → `libxcrypt-compat`) → fix `4a0f2e2` (DV-50) → tag run
+      `37717801328` **all 3 legs green** — artifacts-macOS 152 313 266 B,
+      artifacts-Linux 266 420 579 B, artifacts-fedora 104 047 763 B; CI on
+      the fix `37717796975` success; test tag deleted after observation.
 - [ ] **M2-08** · devops · **S** · deps: M2-07 · `todo`
       Live `npm audit` evidence for the packaging chain (issue #2, M0-19 S4-5):
       record the output in `docs/qa/security-m2-audit.md`, triage highs into

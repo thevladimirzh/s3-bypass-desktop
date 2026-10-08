@@ -359,6 +359,22 @@ fix cannot regress; the comment's "NATIVE rpmbuild" claim corrected to
 what was observed. Local GREEN: 234 passed (234), chain 0/0/0/0; the
 tag run on the fix commit is the acceptance observation.
 
+**M2-07 follow-up final observation — all three legs green (2026-10-08)**:
+test-tag run on the fix commit `4a0f2e2` — `37717801328` —
+`build (macos-latest)` **success**, `build (ubuntu-latest)` **success**,
+`build rpm (fedora container)` **success**: EVERY fedora step green in
+order (`dnf … libxcrypt-compat` → checkout → setup-node → npm ci →
+`Stage the pinned core` (digest re-verify) → `Build the app` →
+`Build rpm (electron-builder + native rpmbuild)` → `SHA-256 manifest —
+written then re-verified` → upload). Artifacts: `artifacts-macOS`
+152 313 266 B, `artifacts-Linux` 266 420 579 B, `artifacts-fedora`
+**104 047 763 B** (rpm + SHA256SUMS.txt; names unique — no
+runner.os collision with the container leg, exactly as DV-47 pinned).
+CI on the fix `37717796975` success (and `37717022842` success on
+`7f5554f`). Test tag `v0.0.0-ci-test` deleted (local + remote) after
+observation; temp files cleaned. Batch history: RED `67a4d74` → GREEN
+`7f5554f` → fix `4a0f2e2` (DV-50) — **follow-up done**.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 
