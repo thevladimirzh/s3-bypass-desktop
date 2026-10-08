@@ -96,7 +96,7 @@ the DV-36/DV-37 pattern.
 
 ### Phase D — i18n groundwork (English first, Russian → backlog)
 
-- [ ] **M3-08** · qa+developer · **M** · deps: M3-05 · `todo`
+- [x] **M3-08** · qa+developer · **M** · deps: M3-05 · `done` (RED `f3ca47d`+fixup `6537d18` + GREEN, 2026-10-09 — 315/315, TC-POL-05)
       Extract renderer + tray + hint strings into a single EN strings module
       with a `t(key)` seam (no RU content — BRIEF §3): every existing
       exact-wording pin must stay byte-identical GREEN (the seam re-exports the

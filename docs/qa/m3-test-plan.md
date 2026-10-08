@@ -295,6 +295,26 @@ results.)_
   re-export what the app shows, and a wording change would need an owner
   decision, never a refactor. The consumer absence-check followed
   (`'Clear'` instead of `'Clear logs'`).
+
+### M3-08 GREEN (i18n seam, 2026-10-09)
+
+- Chain: prettier `docs/ src/ tests/` clean, typecheck rc=0, eslint rc=0
+  (one GREEN fixup: `simple-import-sort` in `status-labels.ts`).
+- Implementation:
+  - `src/shared/strings.ts` (new): the `EN` map (19 keys, `status.*
+hint.* action.* tray.* logs.* app.*`) + `t(key, params?)` with
+    `{name}` substitution — byte-identical values, no Cyrillic;
+  - `status-labels.ts`: every entry resolves through `t('status.*')`
+    (local duplicates gone); `App.tsx`: both tunnel hints, the tagline,
+    the Start/Stop accessible name and the AC-04.5 sentence render
+    through the seam; `LogsView.tsx`: title/buttons/empty state;
+    `window-lifecycle.ts`: the four verbatim tray labels.
+  - Rendered output unchanged everywhere — identity strings, the
+    dev-only IPC line and error triples stayed out (§5 scope decisions).
+- Result: **315 passed (315)** / 44 files — all 3 named REDs resolved and
+  every pre-existing wording pin green without a single edit (the M3-08
+  contract). e2e: 1 passed (1) (the Start/Stop exact-name contract byte-
+  identical).
 - e2e: not re-run for this RED (suite + docs only; unchanged at `e08d2e5`,
   1/1).
 

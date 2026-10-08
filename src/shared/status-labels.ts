@@ -15,12 +15,13 @@
  * pinned — these exact strings are now the shared source of that pin).
  */
 import type { CoreState } from './status-machine';
+import { t } from './strings';
 
 /** The complete state → visible-label map (data-flows §2.3 state set). */
 export const STATUS_LABELS: Readonly<Record<CoreState, string>> = {
-  stopped: 'Stopped',
-  starting: 'Starting...',
-  running: 'Running',
-  stopping: 'Stopping...',
-  crashed: 'Core crashed',
+  stopped: t('status.stopped'),
+  starting: t('status.starting'),
+  running: t('status.running'),
+  stopping: t('status.stopping'),
+  crashed: t('status.crashed'),
 };

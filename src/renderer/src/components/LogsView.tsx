@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { LogLine } from '../../../shared/ipc';
+import { t } from '../../../shared/strings';
 
 /** FR-46 cap mirrored into the renderer (S5-7: main's 2000-line bound, end-to-end). */
 const MAX_RENDERED_LINES = 2000;
@@ -76,13 +77,13 @@ export default function LogsView() {
 
   return (
     <section className="status logs">
-      <h2>Logs</h2>
+      <h2>{t('logs.title')}</h2>
       <div className="log-actions">
         <button type="button" onClick={copyLogs}>
-          Copy logs
+          {t('logs.copy')}
         </button>
         <button type="button" onClick={clearLogs}>
-          Clear
+          {t('logs.clear')}
         </button>
       </div>
       <ul className="log-list" ref={listRef}>
@@ -94,7 +95,7 @@ export default function LogsView() {
           </li>
         ))}
       </ul>
-      {lines.length === 0 && <p className="log-empty">No log lines yet.</p>}
+      {lines.length === 0 && <p className="log-empty">{t('logs.empty')}</p>}
     </section>
   );
 }

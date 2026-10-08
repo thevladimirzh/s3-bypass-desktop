@@ -10,6 +10,7 @@ import type {
   StatusSnapshot,
 } from '../../shared/ipc';
 import { STATUS_LABELS } from '../../shared/status-labels';
+import { t } from '../../shared/strings';
 import LogsView from './components/LogsView';
 
 /**
@@ -21,19 +22,20 @@ import LogsView from './components/LogsView';
  */
 export { STATUS_LABELS };
 
-/** FR-12 / FR-30 exact user-visible hint wording, verbatim (AC-02.3 / AC-04.4). */
-const HINT_NO_PROFILE = 'Import a profile first';
-const HINT_PROXY_NOT_RUNNING = 'Start the tunnel first';
+/** FR-12 / FR-30 exact user-visible hint wording, verbatim (AC-02.3 / AC-04.4) — M3-08: resolved through the shared `t(key)` seam. */
+const HINT_NO_PROFILE = t('hint.noProfile');
+const HINT_PROXY_NOT_RUNNING = t('hint.proxyNotRunning');
 
 /**
  * AC-04.5 (data-flows §3.3, M3-06): the exact manual-proxy sentence built
  * from main's `ProxyState.hint` — shown ONLY when `supported` is false (the
- * hint is the unsupported-desktop answer, never per-start spam).
+ * hint is the unsupported-desktop answer, never per-start spam). M3-08: the
+ * sentence lives in the shared strings seam.
  */
 function manualProxyHint(hint: ProxyHint | undefined): string {
   const host = hint?.host ?? '127.0.0.1';
   const port = hint?.port ?? DEFAULT_SOCKS_PORT;
-  return `Not supported on this desktop — set it manually: SOCKS proxy ${host}, port ${port}.`;
+  return t('hint.unsupportedDesktop', { host, port });
 }
 
 export default function App() {
@@ -228,7 +230,7 @@ export default function App() {
   return (
     <main className="shell">
       <h1>S3 Bypass Desktop</h1>
-      <p className="tagline">Import a config — press Start — the internet works.</p>
+      <p className="tagline">{t('app.tagline')}</p>
       <section className="status">
         {ping ? (
           <p>
@@ -256,7 +258,7 @@ export default function App() {
           <button
             type="button"
             className="connect-toggle"
-            aria-label={showingStop ? 'Stop' : 'Start'}
+            aria-label={showingStop ? t('action.stop') : t('action.start')}
             onClick={() => runTunnelAction(showingStop ? 'stopCore' : 'startCore')}
             disabled={toggleDisabled}
           >

@@ -33,6 +33,7 @@
 
 import { STATUS_LABELS } from '../shared/status-labels';
 import type { CoreState } from '../shared/status-machine';
+import { t } from '../shared/strings';
 
 /** Window close verdict (US-05 AC-05.2 / FR-39): hide to tray vs. really close. */
 export type ClosePolicy = 'hide' | 'close';
@@ -134,10 +135,10 @@ export function buildTrayMenu(state: CoreState): TrayMenuModel {
   return {
     statusText: STATUS_LABELS[state],
     items: [
-      { id: 'open', label: 'Show window', enabled: true },
-      { id: 'start', label: 'Start tunnel', enabled: canStart },
-      { id: 'stop', label: 'Stop tunnel', enabled: canStop },
-      { id: 'quit', label: 'Quit', enabled: true },
+      { id: 'open', label: t('tray.showWindow'), enabled: true },
+      { id: 'start', label: t('tray.startTunnel'), enabled: canStart },
+      { id: 'stop', label: t('tray.stopTunnel'), enabled: canStop },
+      { id: 'quit', label: t('tray.quit'), enabled: true },
     ],
   };
 }
