@@ -560,12 +560,22 @@ const coreWiring = createCoreWiring({
 // ————————————————————————————————————————————————————————————————
 
 /**
+ * S5-15 kill budget (issue #22): a hung platform command (networksetup /
+ * gsettings) must not strand restore/quit — execFile gets an explicit
+ * 10 s timeout; the killed error lands on the fail-closed `-1` convention
+ * below (its `error.code` is not a number), and the quit-teardown's
+ * per-step bound (window-lifecycle, 12 s) outlives this one.
+ */
+const EXEC_TIMEOUT_MS = 10_000;
+
+/**
  * PR-08 executor seam for `SystemProxyContext.run`: executes ONE argv array
  * through `execFile` (never a shell string — no `exec`/`execSync`/`shell:true`
  * anywhere in this file), resolving the `{code, stdout, stderr}` shape the
  * system-proxy module consumes. A non-zero exit maps to its numeric code; a
- * spawn failure (missing binary) degrades to `-1`, exactly the fail-closed
- * convention the module applies to a throwing executor (FR-35).
+ * spawn failure (missing binary) or a kill-timeout kill degrades to `-1`,
+ * exactly the fail-closed convention the module applies to a throwing
+ * executor (FR-35, S5-15).
  *
  * @param args argv array — `[binary, ...args]`, no shell metacharacters
  */
@@ -575,10 +585,15 @@ function runExecFile(args: string[]): Promise<CommandResult> {
     return Promise.resolve({ code: -1, stdout: '', stderr: 'execFile: empty argv' });
   }
   return new Promise((resolve) => {
-    execFile(command, argv, { encoding: 'utf8' }, (error, stdout, stderr) => {
-      const code = error === null ? 0 : typeof error.code === 'number' ? error.code : -1;
-      resolve({ code, stdout, stderr });
-    });
+    execFile(
+      command,
+      argv,
+      { encoding: 'utf8', timeout: EXEC_TIMEOUT_MS },
+      (error, stdout, stderr) => {
+        const code = error === null ? 0 : typeof error.code === 'number' ? error.code : -1;
+        resolve({ code, stdout, stderr });
+      },
+    );
   });
 }
 

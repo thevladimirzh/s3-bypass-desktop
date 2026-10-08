@@ -131,6 +131,19 @@ const PROBE_TIMEOUT_MS = 500;
 const TERM_BUDGET_MS = 2_000;
 
 /**
+ * S5-15 last resort (issue #22): past SIGTERM + SIGKILL + this grace the
+ * tracked child is provably dead (SIGKILL is unblockable) even when a
+ * grandchild keeps the stdio pipes open — `handleChildExit` is then FORCED
+ * (idempotent via `exitHandled`) so `stop()`/`forceStop()` settle fail-open
+ * after the best-effort kill instead of hanging on 'close' forever; the
+ * eventual real 'close' no-ops.
+ */
+const EXIT_LAST_RESORT_MS = 5_000;
+
+/** S5-8 (issue #22): line-reader buffer cap — longer no-newline child output is force-flushed as segments through the redaction-first `emitLine`, never buffered unbounded. */
+const LINE_READER_CAP = 64 * 1024;
+
+/**
  * FR-15 TOCTOU grace: `start()` polls this long for a transient holder (a
  * dying previous core, a racing producer) to clear 10808 before it settles
  * the documented E-IO-003 — the port check's result, just not its timing.
@@ -403,7 +416,7 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
     }
   }
 
-  /** Splits one child stream into complete lines; a trailing partial line is flushed on end. */
+  /** Splits one child stream into complete lines; a trailing partial line is flushed on end; no-newline output force-flushes as ≤ LINE_READER_CAP segments (S5-8, issue #22). */
   function attachLineReader(stream: Readable, name: CoreLogLine['stream']): void {
     let buffer = '';
     stream.setEncoding('utf8');
@@ -415,6 +428,14 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
         buffer = buffer.slice(newlineAt + 1);
         emitLine(name, raw.endsWith('\r') ? raw.slice(0, -1) : raw);
         newlineAt = buffer.indexOf('\n');
+      }
+      // S5-8 (issue #22): child output without a newline must not grow the
+      // buffer unbounded — force-flush full segments through the same
+      // redaction-first emitLine; the remainder (< cap) waits for '\n',
+      // stream end, or the next segment.
+      while (buffer.length >= LINE_READER_CAP) {
+        emitLine(name, buffer.slice(0, LINE_READER_CAP));
+        buffer = buffer.slice(LINE_READER_CAP);
       }
     });
     stream.on('end', () => {
@@ -507,10 +528,18 @@ export function createSupervisor(options: SupervisorOptions): CoreSupervisor {
         child.kill('SIGKILL');
       }
     }, TERM_BUDGET_MS);
+    // S5-15 (issue #22): a grandchild holding the stdio pipes keeps 'close'
+    // — and with it `exited` — from ever firing; past SIGTERM + SIGKILL +
+    // the grace the tracked child is dead, so the single exit path is
+    // forced (idempotent) and the stop settles fail-open (DV-62).
+    const lastResort = setTimeout(() => {
+      handleChildExit(null, null, null);
+    }, TERM_BUDGET_MS + EXIT_LAST_RESORT_MS);
     try {
       await exited;
     } finally {
       clearTimeout(escalate);
+      clearTimeout(lastResort);
     }
   }
 

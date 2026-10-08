@@ -768,6 +768,22 @@ block: exactly **4 failed** in their named tests; `npm run typecheck`, `npx esli
 stop-hang race (12.2 s), three exec pins, hung-step chain; pre-batch baseline 285 passed /
 43 files, all still passing.
 
+**pre-M3 fix batch #22 — S5-8/S5-15 bounds — GREEN** (2026-10-08): artifacts per DV-62 —
+`core-supervisor.ts` (`LINE_READER_CAP = 64 * 1024`: the reader force-flushes no-newline
+output as segments through the SAME redaction-first `emitLine` after the newline loop,
+remainder kept ≤ cap; `EXIT_LAST_RESORT_MS = 5_000`: `terminateChild` FORCES the
+idempotent single exit path `handleChildExit(null, null, null)` past SIGTERM (2 s) +
+SIGKILL + the grace, so `stop()`/`forceStop()` settle fail-open when a grandchild holds
+the stdio pipes and the eventual real 'close' no-ops via `exitHandled`),
+`window-lifecycle.ts` (`TEARDOWN_STEP_BUDGET_MS = 12_000`: each teardown step races a
+bound — a HUNG step is abandoned AS its failure and the chain proceeds, `requestQuit`
+still last), `index.ts` (`EXEC_TIMEOUT_MS = 10_000` on `runExecFile`, killed errors
+landing on the existing non-numeric-`error.code` → `-1` fail-closed convention).
+Observed: **`Tests 289 passed (289)`, `Test Files 43 passed (43)`** (+4 over 285/43);
+`npm run typecheck`, `npx eslint .`, `npx prettier --check` all exit 0; zero eslint
+`--fix` (DV-62(5) held). **e2e observation:** `npm run test:e2e` → `Tests 1 passed (1)` —
+the real quit path (stop + teardown) survives the new bounds end-to-end.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 

@@ -147,6 +147,16 @@ export function buildTrayMenu(state: CoreState): TrayMenuModel {
 }
 
 /**
+ * S5-15 (issue #22): every quit-teardown step is bounded — a HUNG platform
+ * exec (networksetup/gsettings) or a stuck core stop must not strand the
+ * quit. The budget outlives the supervisor's own ~7 s stop bound (SIGTERM
+ * 2 s + last-resort grace 5 s, core-supervisor) AND the 10 s execFile kill
+ * (index.ts EXEC_TIMEOUT_MS); past it the step is abandoned AS its failure
+ * and the chain proceeds — `requestQuit` still runs last (AC-05.5).
+ */
+const TEARDOWN_STEP_BUDGET_MS = 12_000;
+
+/**
  * Builds the window/tray lifecycle policy over injected collaborators.
  *
  * Side-effect isolation (TC-05-15): nothing here touches Electron or the OS —
@@ -172,15 +182,33 @@ export function createWindowLifecycle(deps: WindowLifecycleDeps): WindowLifecycl
   // teardown ever being skipped or hung.
   const runTeardown = async (): Promise<void> => {
     const failures: unknown[] = [];
-    const attempt = async (step: () => void | Promise<void>): Promise<void> => {
+    const attempt = async (step: () => void | Promise<void>, what: string): Promise<void> => {
+      let bound: NodeJS.Timeout | undefined;
       try {
-        await step();
+        await Promise.race([
+          step(),
+          new Promise<void>((resolveBound) => {
+            bound = setTimeout(() => {
+              // S5-15 (issue #22): a HUNG step (not a failing one) used to
+              // strand the whole quit — after the budget it is abandoned AS
+              // its failure and the chain proceeds (requestQuit still last).
+              failures.push(
+                new Error(
+                  `${what} exceeded ${TEARDOWN_STEP_BUDGET_MS} ms — quit proceeds (S5-15, issue #22)`,
+                ),
+              );
+              resolveBound();
+            }, TEARDOWN_STEP_BUDGET_MS);
+          }),
+        ]);
       } catch (error: unknown) {
         failures.push(error);
+      } finally {
+        clearTimeout(bound);
       }
     };
-    await attempt(() => deps.stopCore());
-    await attempt(() => deps.restoreProxy());
+    await attempt(() => deps.stopCore(), 'stopCore');
+    await attempt(() => deps.restoreProxy(), 'restoreProxy');
     try {
       deps.requestQuit();
     } catch (error: unknown) {
