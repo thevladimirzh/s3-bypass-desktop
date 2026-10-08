@@ -102,8 +102,12 @@ pattern of DV-36/DV-37.
       233 passed | 0 failed; RED-test correction DV-44; G-05 closed in
       acceptance-m1-27.md). CI run `37712854252`: **coverage job green**; the
       lint failure in the new test file was caught there and fixed with a
-      retraction of the piped exit-0 claims (DV-45) — checks/e2e verdicts land
-      on the follow-up run.
+      retraction of the piped exit-0 claims (DV-45) → `37713275604` CI
+      **all 4 jobs green** (e2e first real run ✓) → release validation
+      `37713415626` failed (DV-46: publish-on-tag + author email) → fixed →
+      `37714279005` **Release SUCCESS both legs** (manifest OK 4/5 entries;
+      artifacts-macOS 152 313 143 B, artifacts-Linux 370 475 445 B), CI on the
+      fix `37714274378` success; test tag deleted after observation.
 - [ ] **M2-08** · devops · **S** · deps: M2-07 · `todo`
       Live `npm audit` evidence for the packaging chain (issue #2, M0-19 S4-5):
       record the output in `docs/qa/security-m2-audit.md`, triage highs into

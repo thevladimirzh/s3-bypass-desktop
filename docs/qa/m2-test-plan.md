@@ -282,6 +282,25 @@ is still a substring of the step) — the fixes make the contract's
 "builds the artifacts" intent actually true. The re-tagged CI run observes
 the result — recorded only after it exists (no claim ahead of the run).
 
+**M2-07 — closed: release run green end-to-end** (2026-10-08): re-tagged
+validation (`v0.0.0-ci-test` moved to the fix commit `21940b8`) → release
+run `37714279005` **SUCCESS on both legs** — `build (macos-latest)` and
+`build (ubuntu-latest)` each executed `npm run prepare:core` (pinned core
+digests re-verified at build — DoD #1), electron-vite build,
+`electron-builder --publish never`, then the manifest step printed
+`manifest OK: created 4 entries in release/SHA256SUMS.txt` (macOS) /
+`manifest OK: created 5 entries` (Linux) — written AND re-verified in the
+same step — and `upload-artifact` (if-no-files-found: error) landed
+**artifacts-macOS 152 313 143 B** (dmg) and **artifacts-Linux
+370 475 445 B** (AppImage + .deb + .rpm + manifest). The fix commit's own
+CI run `37714274378` = success (all 4 jobs). The test tag was deleted
+(remote + local) after observation. Batch run history: `37712854252` CI
+fail (lint, DV-45) → `37713275604` CI success (coverage + e2e first real
+run + checks ×2) → `37713415626` Release fail (DV-46) → `37714274378` CI
+success → `37714279005` Release success. **M2-07 complete**: DoD #1
+observed on a real tag build, G-05's gate live and green (84.59 %), e2e
+proposal rollout #1 green.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 
