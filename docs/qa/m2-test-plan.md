@@ -695,6 +695,32 @@ failed | 266 passed (277)`, `Test Files 1 failed | 41 passed (42)`, exit 1 —
 all 11 failures in the new file for their named reasons; baseline 266 passed
 / 0 failed untouched (no existing test edited).
 
+**pre-M3 fix batch #20 — staging clean + pack gate — GREEN** (2026-10-08):
+artifacts per DV-60 — `scripts/core-staging.mjs` (TARGETS moved verbatim
+from prepare-core; `cleanStagingTarget` removes the target before every
+unzip; write/read staging manifests at `core-bin/.manifests/<target>.json`),
+`scripts/prepare-core.mjs` (clean between the zip digest check and the
+unzip; manifest write with the pin-doc zip sha + five member digests after
+the digest-verified extraction), `scripts/after-pack-verify.mjs` (offline
+fail-closed verifier — `no staging manifest` / `STALE staging` / `STRAY
+packed` / `MISSING packed` / `DIGEST mismatch` all throw — plus the default
+`afterPack(context)` adapter mapping platform/arch → packed Resources dirs),
+`electron-builder.yml` `afterPack:` wiring. Observed: **`Tests 277 passed
+(277)`, `Test Files 42 passed (42)`** (+11 over the 266/41 baseline);
+`npm run typecheck`, `npx eslint .`, `npx prettier --check` all exit 0 (one
+local eslint `--fix` import-sort on the new/edited scripts — DV-51(5),
+declared in DV-60(8)). **Empirical gate observation (DV-60(7)):**
+`npm run prepare:core` → rc 0 — all three targets re-staged from empty dirs
+
+- three manifests written; `npm run dist` → **rc 0** (electron-builder
+  26.17.0 executed the `.mjs` default export — the ESM-hook risk is closed by
+  observation); negative probe: planted `core-bin/darwin-arm64/stray-stale.txt`
+  → `npm run dist` **failed closed** — `⨯ core pack gate: STRAY packed
+file(s) in darwin-arm64: stray-stale.txt — run npm run prepare:core`; stray
+  removed → `npm run dist` **rc 0** again (dmg 152 962 046 B rebuilt locally —
+  a fresh byte stream over the recorded P3 artifact; P3 keeps its historical
+  record).
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 

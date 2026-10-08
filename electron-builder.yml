@@ -9,6 +9,10 @@ files:
 # archive, never loose files (M1 finding S5-18 recommendation).
 asar: true
 npmRebuild: false
+# M2-20 fix (issue #20 / M2-09 S6-1, DV-60): fail-closed pack gate —
+# re-hashes the packed core against the prepare:core staging manifest and
+# the pin doc (offline; STALE/STRAY/MISSING/DIGEST all throw → build fails).
+afterPack: scripts/after-pack-verify.mjs
 # M2-06 (TC-PKG-10): attributions packed into EVERY artifact — electron-
 # builder concatenates this global list with the platform extraResources
 # below (app-file matcher: global + platformSpecificBuildOptions), so it

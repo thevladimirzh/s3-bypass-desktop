@@ -40,18 +40,16 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { cleanStagingTarget, TARGETS, writeStagingManifest } from './core-staging.mjs';
 import { expectedShaForAsset } from './verify-core-pin.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PIN_DOC = join(ROOT, 'docs', 'analysis', 'core-pin.md');
 const STAGING = join(ROOT, 'core-bin');
+const MANIFESTS = join(STAGING, '.manifests');
 
-/** Pinned asset → staged build target (the mapping M2-05 packs). */
-const TARGETS = {
-  'Xray-macos-64.zip': 'darwin-x64',
-  'Xray-macos-arm64-v8a.zip': 'darwin-arm64',
-  'Xray-linux-64.zip': 'linux-x64',
-};
+/** The five members every release zip carries (staged + manifested, DV-60). */
+const MEMBER_NAMES = ['xray', 'geoip.dat', 'geosite.dat', 'LICENSE', 'README.md'];
 
 function die(message) {
   process.stderr.write(`prepare:core FAILED: ${message}\n`);
@@ -91,6 +89,9 @@ async function main() {
 
       const zipPath = join(work, asset);
       writeFileSync(zipPath, bytes);
+      // issue #20 fix a: start extraction from an EMPTY target — stale
+      // members and stray files cannot survive into the package.
+      cleanStagingTarget(STAGING, target);
       mkdirSync(join(STAGING, target), { recursive: true });
       const unzip = spawnSync('unzip', ['-q', '-o', zipPath, '-d', join(STAGING, target)], {
         encoding: 'utf8',
@@ -101,6 +102,22 @@ async function main() {
       const binary = staged(target, 'xray');
       if (!existsSync(binary)) die(`${asset} staged without its xray binary (${binary})`);
       chmodSync(binary, 0o755);
+      // issue #20 fix b: record what the digest-verified zip actually staged
+      // (zip sha from the pin doc + per-member digests) — the afterPack gate
+      // re-verifies the PACKED bytes against this manifest, offline.
+      const members = {};
+      for (const name of MEMBER_NAMES) {
+        members[name] = createHash('sha256')
+          .update(readFileSync(staged(target, name)))
+          .digest('hex');
+      }
+      writeStagingManifest(MANIFESTS, target, {
+        asset,
+        target,
+        zipSha256: expected,
+        members,
+        stagedAt: new Date().toISOString(),
+      });
       process.stdout.write(`prepare:core OK ${asset} → core-bin/${target}/xray\n`);
     }
   } finally {
