@@ -133,7 +133,11 @@ batch (no code/test change; baseline **236 passed / 0 failed (37 files)** untouc
 
 ### 9.2 Fresh-machine DoD (M2-12) — L4 checklist
 
-_TBD — L4 checklist (M2-12)._
+**Executed** — checklist `docs/qa/m2-fresh-machine.md` (family **TC-FM-01..28**,
+DV-54): all 28 rows **and** P1…P8 `observed-GREEN`, **verdict PASS** recorded in
+its §7 (run 2026-10-08, macOS 15.6.1 arm64, VPN-off venue; owner-executed legs
+TC-FM-23 sleep / TC-FM-24 logout / TC-FM-25 second account). Row fills ride
+commit `bfc99c0` + the closing commit; declarations DV-54 / DV-55.
 
 ---
 
@@ -655,6 +659,24 @@ by hand, spelling now derived from the tool's own help at runtime. P4
 respected throughout (`profile-store.blob` never manipulated); end state
 clean: app gone, port 10808 free, all three proxy getters byte-for-byte
 baseline, every configured VPN service `(Disconnected)`.
+
+**M2-12 fresh-machine — closing sweep + verdict — PASS** (2026-10-08): TC-FM-24
+executed (owner logged out while the tunnel was RUNNING and logged back in —
+no hung child; pre/post output pasted in the row; `pgrep`/`networksetup`/
+`screencapture` were unavailable in the first post-login minutes of this
+session — venue note inside the cell — `ps`/`lsof`/`scutil` equivalents used
+instead: 0 pattern matches, `nc rc=1`, `lsof rc=1`, `scutil --proxy`
+`<dictionary> {}` ≡ baseline, temp dir gone → the app's teardown ran at session
+end). The two DV-58 `blocked-re-run` cells closed on the post-UX build:
+TC-FM-04/18 re-run — **main window and tray both visible at +827 ms** from
+spawn (≤3 s), single stable PID 14120, 0 error-dialog windows, clean AppleScript
+quit at +1236 ms (`driver0418` / `fm0418-results.json`; window-scoped
+`screencapture -l` denied by TCC — named in both cells, not skipped). Checklist
+§7: **28/28 `observed-GREEN`, 0 FAIL, 0 open `blocked-*` → verdict PASS**;
+§9.2 updated, board M2-12 → `done`. Venue honesty: the owner briefly re-enabled
+VPN after TC-FM-24 and switched it off again on request — P1's closing gate
+re-verified `nc -z 127.0.0.1 10808` → `rc=1` before the 04/18 re-run. Sweep
+commit `bfc99c0`; this closing commit lands the verdict.
 
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_

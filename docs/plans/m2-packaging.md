@@ -184,7 +184,7 @@ pattern of DV-36/DV-37.
       fixtures — `supported` derivation, no src change). Issue #19 stays OPEN
       pending owner — its
       acceptance checklist is fully satisfied (closure text via user).
-- [ ] **M2-12** · project-manager · **M** · deps: M2-07, M2-10 · `todo`
+- [x] **M2-12** · project-manager · **M** · deps: M2-07, M2-10 · `done`
       Fresh-machine install run (M2 DoD #2): install the packaged app → import →
       start → stop; this is also where the **Q9-waived M1 desktop manual rows**
       land (acceptance §8). Checklist: `docs/qa/m2-fresh-machine.md`.
