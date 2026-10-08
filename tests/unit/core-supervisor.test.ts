@@ -97,7 +97,7 @@
  */
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { dirname, isAbsolute, join, sep } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -407,28 +407,22 @@ describe('supervisor — spawn → running (FR-13, FR-21; data-flows (b) steps 2
     await rig.supervisor.stop();
   }, 15_000);
 
-  it('supervisor.config.relativePaths.resolveFromMainTempNotCwd', async () => {
+  it('supervisor.config.sessionsDirPassesThroughVerbatim', async () => {
     // The §9.1 canary config carries the relative sessionsDir "sessions".
+    // FR-22 (amended, issue #23): sessionsDir is the fedarisha session-rendezvous
+    // S3 key prefix, NOT a filesystem path — materialization passes it through
+    // verbatim; rewriting it to an absolute local path breaks the relay handshake.
     const rig = await createRig();
     const result = await rig.supervisor.start();
     expect(result.ok, `TC-02-11: start failed — ${JSON.stringify(result)}`).toBe(true);
 
     const tPath = materializedConfigPath(rig);
     const storage = fedarishaStorage(readMaterialized(tPath));
-    const sessionsDir = storage['sessionsDir'];
-    expect(typeof sessionsDir, 'TC-02-11/FR-22: sessionsDir must survive materialization').toBe(
-      'string',
-    );
-    const resolved = String(sessionsDir);
     expect(
-      isAbsolute(resolved),
-      `TC-02-11/FR-22: relative paths must be resolved at materialization — got ${resolved}`,
-    ).toBe(true);
-    expect(
-      resolved.startsWith(`${dirname(tPath)}${sep}`),
-      `TC-02-11/FR-22/data-flows step 3: sessionsDir must resolve from T's directory ` +
-        `(${dirname(tPath)}), never the user's CWD — got ${resolved}`,
-    ).toBe(true);
+      storage['sessionsDir'],
+      'TC-02-11/FR-22 (amended, issue #23): sessionsDir must pass through materialization ' +
+        'verbatim (relative relay prefix), never rewritten to an absolute local path',
+    ).toBe('sessions');
 
     await rig.supervisor.stop();
   }, 15_000);
