@@ -85,10 +85,13 @@
  *      image: fedora:46` (GitHub hosts no Fedora runners — the container IS
  *      the way; fedora:46 = current stable per Docker Hub on 2026-10-08,
  *      pinned to the major, never `latest`). Step order: FIRST
- *      `dnf -y install git rpm-build unzip zstd` (fedora-minimal ships
- *      neither: git for actions/checkout, rpm-build = NATIVE rpmbuild for
- *      electron-builder's rpm target, unzip for scripts/prepare-core.mjs
- *      which spawnSync()s it, zstd for the actions/cache tar --zstd), then
+ *      `dnf -y install git rpm-build unzip zstd libxcrypt-compat`
+ *      (fedora-minimal ships neither: git for actions/checkout, rpm-build =
+ *      electron-builder's rpm target goes fpm → rpmbuild, unzip for
+ *      scripts/prepare-core.mjs which spawnSync()s it, zstd for the
+ *      actions/cache tar --zstd, libxcrypt-compat = libcrypt.so.1 for
+ *      fpm's bundled ruby — Fedora ships only libcrypt.so.2, observed
+ *      DV-50), then
  *      checkout → setup-node → npm ci → prepare:core → build →
  *      `npm run dist -- --publish never --linux rpm` (rpm ONLY on this leg)
  *      → release:manifest → upload `artifacts-fedora`
@@ -327,11 +330,12 @@ describe('TC-PKG-15 — .deb on ubuntu, .rpm in a pinned Fedora container (M2-07
     ).toMatch(/fedora:\d+/);
     expect(
       rpm,
-      'DV-47: fedora-minimal tooling installed BEFORE the steps need it — ' +
-        'git (actions/checkout), rpm-build (NATIVE rpmbuild for the rpm ' +
-        'target), unzip (scripts/prepare-core.mjs spawnSyncs it), zstd ' +
-        '(actions/cache tar --zstd)',
-    ).toMatch(/dnf -y install[^\n]*git[^\n]*rpm-build[^\n]*unzip[^\n]*zstd/);
+      'DV-47/DV-50: fedora-minimal tooling installed BEFORE the steps need ' +
+        'it — git (actions/checkout), rpm-build (electron-builder rpm = ' +
+        'fpm → rpmbuild), unzip (scripts/prepare-core.mjs spawnSyncs it), ' +
+        'zstd (actions/cache tar --zstd), libxcrypt-compat (libcrypt.so.1 ' +
+        'for fpm bundled ruby — Fedora ships only .so.2)',
+    ).toMatch(/dnf -y install[^\n]*git[^\n]*rpm-build[^\n]*unzip[^\n]*zstd[^\n]*libxcrypt-compat/);
     expect(
       rpm.indexOf('run: dnf -y install'),
       'DV-47: the dnf step must run BEFORE the checkout step (the ' +

@@ -86,11 +86,15 @@ jobs:
     timeout-minutes: 45
     steps:
       # fedora-minimal ships none of these: git (actions/checkout),
-      # rpm-build (electron-builder's rpm target), unzip (scripts/
-      # prepare-core.mjs spawnSyncs it), zstd (actions/cache tar --zstd).
-      # Installed BEFORE checkout — the order is pinned by TC-PKG-15.
-      - name: Native rpm tooling + git + unzip (fedora minimal)
-        run: dnf -y install git rpm-build unzip zstd
+      # rpm-build (electron-builder's rpm target = fpm → rpmbuild),
+      # unzip (scripts/prepare-core.mjs spawnSyncs it), zstd (actions/cache
+      # tar --zstd), libxcrypt-compat (Fedora ships only libcrypt.so.2 —
+      # electron-builder's bundled fpm ruby links libcrypt.so.1 and dies
+      # with exit 127 without the compat symlink, observed DV-50 on run
+      # 37717025643). Installed BEFORE checkout — the order is pinned by
+      # TC-PKG-15.
+      - name: Native rpm tooling + git + unzip + libcrypt (fedora minimal)
+        run: dnf -y install git rpm-build unzip zstd libxcrypt-compat
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
