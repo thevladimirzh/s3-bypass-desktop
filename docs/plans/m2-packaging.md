@@ -170,7 +170,10 @@ pattern of DV-36/DV-37.
       Observed RED `6 failed | 236 passed (242)` → GREEN `242 passed (242)`,
       chain 0. `data-flows.md` §5 quit note now states the implemented
       pre-exit surfacing (D-10(d) pin flipped WITH it, DV-36 rule);
-      m2-test-plan §8/§10/DV-51. Issue #19 stays OPEN pending owner — its
+      m2-test-plan §8/§10/DV-51. CI fix-forward DV-52 (run `37725953841`:
+      mac legs green, ubuntu legs → platform guards on the TC-04-21/22/23
+      fixtures — `supported` derivation, no src change). Issue #19 stays OPEN
+      pending owner — its
       acceptance checklist is fully satisfied (closure text via user).
 - [ ] **M2-12** · project-manager · **M** · deps: M2-07, M2-10 · `todo`
       Fresh-machine install run (M2 DoD #2): install the packaged app → import →

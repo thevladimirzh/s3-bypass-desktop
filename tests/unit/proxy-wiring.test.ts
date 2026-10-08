@@ -783,9 +783,29 @@ describe('FR-35 fail-closed restore surfacing (M2-11, issue #19) — TC-04-20..2
 
   it('crash.proxyRestoreFailure.surfacesPersistentWarning', async () => {
     await settleQuietly();
+    // Platform truth (the same derivation TC-04-16/17 guard with): the
+    // auto-apply stores a snapshot only on a SUPPORTED desktop — darwin,
+    // or linux+gnome. The ubuntu CI leg is linux without a desktop env,
+    // so its branch pins the crash arm's NULL idempotency instead.
+    const supported = isSupportedPlatform(
+      process.platform,
+      process.env.XDG_CURRENT_DESKTOP,
+    ).supported;
     // Auto-apply on start (AC-04.1) stores the snapshot — the "toggle On"
     // precondition of FR-35's crash arm.
     await invoke('core:start');
+    if (!supported) {
+      const before = vi.mocked(restoreSystemProxy).mock.calls.length;
+      emitCrash();
+      await flushAsync();
+      expect(
+        vi.mocked(restoreSystemProxy).mock.calls.length,
+        'unsupported desktop: nothing could be applied → the crash arm is the ' +
+          "module's idempotent no-op (no revert attempt)",
+      ).toBe(before);
+      expect(probe.dialogCalls.length, 'no warning when nothing was applied').toBe(0);
+      return;
+    }
     expect((await invoke<ProxyState>('proxy:get')).active, 'precondition: applied').toBe(true);
 
     vi.mocked(restoreSystemProxy).mockResolvedValueOnce(RESTORE_FAILURE);
@@ -823,10 +843,29 @@ describe('FR-35 fail-closed restore surfacing (M2-11, issue #19) — TC-04-20..2
 
   it('crash.proxyRestoreSuccess.clearsSnapshotWithoutWarning', async () => {
     await settleQuietly();
+    const supported = isSupportedPlatform(
+      process.platform,
+      process.env.XDG_CURRENT_DESKTOP,
+    ).supported;
     await invoke('core:start');
     emitCrash(); // restore default: {ok: true}
     await flushAsync();
 
+    if (!supported) {
+      // Nothing applied (unsupported desktop) → the hook's null guard skips:
+      // no revert attempt, no warning, proxy:get still honestly false.
+      expect(
+        vi.mocked(restoreSystemProxy).mock.calls.length,
+        'unsupported desktop: the crash arm must not attempt a revert of ' +
+          'a proxy it never applied',
+      ).toBe(0);
+      expect(
+        (await invoke<ProxyState>('proxy:get')).active,
+        'proxy:get reports the truth (nothing was applied)',
+      ).toBe(false);
+      expect(probe.dialogCalls.length, 'no warning when nothing was applied').toBe(0);
+      return;
+    }
     expect(
       (await invoke<ProxyState>('proxy:get')).active,
       'FR-35 crash arm: a successful revert clears the snapshot (proxy:get tells the truth)',
@@ -836,7 +875,14 @@ describe('FR-35 fail-closed restore surfacing (M2-11, issue #19) — TC-04-20..2
 
   it('stop.proxyRestoreFailure.surfacesPersistentWarning', async () => {
     await settleQuietly();
+    const supported = isSupportedPlatform(
+      process.platform,
+      process.env.XDG_CURRENT_DESKTOP,
+    ).supported;
     await invoke('core:start');
+    if (supported) {
+      expect((await invoke<ProxyState>('proxy:get')).active, 'precondition: applied').toBe(true);
+    }
     vi.mocked(restoreSystemProxy).mockResolvedValueOnce(RESTORE_FAILURE);
 
     const stopped = await invoke<OperationResult>('core:stop');
@@ -848,10 +894,12 @@ describe('FR-35 fail-closed restore surfacing (M2-11, issue #19) — TC-04-20..2
       probe.dialogCalls.length,
       'FR-35 STOP arm: a failed revert must show the persistent E-PLAT-003 warning',
     ).toBe(1);
-    expect(
-      (await invoke<ProxyState>('proxy:get')).active,
-      'a failed revert keeps proxy:get truthful (active:true — AC-04.7 contract)',
-    ).toBe(true);
+    if (supported) {
+      expect(
+        (await invoke<ProxyState>('proxy:get')).active,
+        'a failed revert keeps proxy:get truthful (active:true — AC-04.7 contract)',
+      ).toBe(true);
+    }
   });
 
   it('quit.proxyRestoreFailure.surfacesWarningBeforeExit', async () => {
