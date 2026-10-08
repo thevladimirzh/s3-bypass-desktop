@@ -48,6 +48,7 @@
  * those snapshots (FR-25: `status:get` reports the CURRENT status).
  */
 import { DEFAULT_SOCKS_PORT } from '../shared/constants';
+import { NO_PROFILE } from '../shared/error-triples';
 import type { AppError, OperationResult, StatusSnapshot } from '../shared/ipc';
 import { type CoreState, type StatusSnapshot as CoreSnapshot } from '../shared/status-machine';
 import type { CoreLogLine, CoreSupervisor, SupervisorOptions } from './core-supervisor';
@@ -109,19 +110,13 @@ export interface CoreWiring {
 const TERMINAL_STATES: readonly CoreState[] = ['stopped', 'crashed'];
 
 /**
- * FR-12 step-0 refusal (errors.md documents NO code for this case — DV-19:
- * no code may be invented, so the flowchart's `E-VAL-*` branch designation
- * travels as the internal `code`; only the triple SHAPE is user-facing,
- * NFR-5: plain title ≤ 60 chars, one-sentence cause, concrete next step,
- * no stack — FR-48).
+ * FR-12 step-0 refusal — `errors.md` §1 `E-VAL-016` (M3-A amendment: the
+ * code is now documented, so DV-19's `E-VAL-*` placeholder is gone; only
+ * the triple SHAPE was ever user-facing, NFR-5: plain title ≤ 60 chars,
+ * one-sentence cause, concrete next step, no stack — FR-48).
  */
 function noProfileError(): AppError {
-  return {
-    code: 'E-VAL-*',
-    title: 'No profile imported yet',
-    cause: 'The tunnel cannot start because no profile has been imported.',
-    nextStep: 'Import a profile first, then click Start.',
-  };
+  return NO_PROFILE;
 }
 
 /**

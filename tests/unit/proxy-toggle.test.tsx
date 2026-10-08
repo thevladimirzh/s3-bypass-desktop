@@ -92,7 +92,7 @@ const E_PLAT_002: AppError = {
   title: 'System proxy change failed',
   cause: 'The operating system command (networksetup) failed.',
   nextStep:
-    'The toggle was returned to Off; set the proxy manually per E-PLAT-001 values, or retry.',
+    'The toggle was returned to Off; set the proxy manually (SOCKS host 127.0.0.1, port 10808), or retry.',
 };
 
 /** FR-30 / AC-04.4 exact hint wording — verbatim, never reworded. */

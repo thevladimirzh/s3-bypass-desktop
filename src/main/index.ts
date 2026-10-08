@@ -18,6 +18,11 @@ import {
 } from 'electron';
 
 import { APP_NAME, DEFAULT_SOCKS_PORT, IPC_PING } from '../shared/constants';
+import {
+  DIALOG_FAILED,
+  E_STOR_005 as PROFILE_SAVE_FAILED,
+  FILE_READ_FAILED,
+} from '../shared/error-triples';
 import type {
   IpcPushChannel,
   LogLine,
@@ -356,14 +361,9 @@ function createWindow(): BrowserWindow {
 // bridged to the renderer (FR-55).
 // ————————————————————————————————————————————————————————————————
 
-/** `errors.md` §2: the picked file vanished between dialog and read (FR-06). */
-const FILE_READ_FAILED: AppError = {
-  code: 'E-IO-001',
-  title: 'Could not read the profile file',
-  cause:
-    'The file could not be read — it may have been moved, deleted, or its permissions changed.',
-  nextStep: 'Check the file still exists, then import again.',
-};
+/** `errors.md` §2: the picked file vanished between dialog and read (FR-06).
+ *  M3-A: the triple itself lives in `src/shared/error-triples.ts` (imported
+ *  above) — single source, pinned by the TC-POL-01 wording rows. */
 
 /** BR-V-02 ceiling in bytes (same value the validator's in-memory gate uses, DV-09). */
 const MAX_PROFILE_BYTES = 1_048_576;
@@ -383,23 +383,6 @@ function profileTooLargeError(size: number): AppError {
     nextStep: 'Pick the actual profile JSON — this file is probably something else.',
   };
 }
-
-/** `errors.md` §2 defensive entry: the native picker itself failed (FR-01). */
-const DIALOG_FAILED: AppError = {
-  code: 'E-IO-002',
-  title: 'File dialog could not open',
-  cause: 'The system file dialog failed to open.',
-  nextStep: 'Try again; if it repeats, restart the app.',
-};
-
-/** `errors.md` §5 defensive entry: persisting the validated document failed (FR-54). */
-const PROFILE_SAVE_FAILED: AppError = {
-  code: 'E-STOR-005',
-  title: 'Profile could not be saved',
-  cause:
-    'Writing the encrypted profile to the app data directory failed (disk full or permissions).',
-  nextStep: 'Free disk space / fix permissions, then import again.',
-};
 
 /** Structural NFR-5 shape — the store throws `SecretStoreError implements AppError`. */
 function isAppError(value: unknown): value is AppError {

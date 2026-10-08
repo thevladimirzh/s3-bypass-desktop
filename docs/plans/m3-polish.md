@@ -59,7 +59,7 @@ the DV-36/DV-37 pattern.
       E-IO-003, E-CORE-001, E-CORE-002, E-VAL-015, the no-profile refusal);
       harden `expectHumanError` — FORBIDDEN `E-(VAL|IO|CORE|PLAT|STOR)-\d{3}`
       and errno tokens (`ENOENT`, `EACCES`, …) inside title/cause/nextStep.
-- [ ] **M3-04** · developer · **M** · deps: M3-03 · `todo`
+- [x] **M3-04** · developer · **M** · deps: M3-03 · `done` (GREEN, 2026-10-08 — 299/299)
       GREEN for the wording pass: align the status-machine illegal-transition
       triple with errors.md (audit B-8c — impl title diverges from the doc);
       drop the internal `E-PLAT-001` out of E-PLAT-002's nextStep (B-9); give

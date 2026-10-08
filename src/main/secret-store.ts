@@ -23,6 +23,7 @@ import { join } from 'node:path';
 
 import { app, safeStorage } from 'electron';
 
+import { E_STOR_005 } from '../shared/error-triples';
 import type { AppError } from '../shared/status-machine';
 
 /** Exact `errors.md` §5 triples — wording is pinned verbatim by the tests (NFR-5). */
@@ -51,14 +52,9 @@ const ERRORS = {
       'The stored profile could not be read (corrupted, tampered, or from another user account).',
     nextStep: 'Re-import your config — the damaged entry will be replaced.',
   },
-  /** FR-54 `[ASSUMPTION]` (errors.md §5 defensive entry): the file operation failed. */
-  STORE_IO_FAILED: {
-    code: 'E-STOR-005',
-    title: 'Profile could not be saved',
-    cause:
-      'Writing the encrypted profile to the app data directory failed (disk full or permissions).',
-    nextStep: 'Free disk space / fix permissions, then import again.',
-  },
+  /** FR-54 `[ASSUMPTION]` (errors.md §5 defensive entry): the file operation failed.
+   *  M3-A: the triple is the shared single source (TC-POL-01 dedup pin). */
+  STORE_IO_FAILED: E_STOR_005,
 } as const satisfies Record<string, AppError>;
 
 /** The store file lives directly in `app.getPath('userData')` (FR-54/FR-56). */

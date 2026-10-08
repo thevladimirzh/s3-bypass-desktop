@@ -11,7 +11,7 @@
  * Spec sources: docs/qa/security-m1-25.md §2/§3 S5-3 (finding: the teardown
  * always runs stopCore → restoreProxy → requestQuit, but the state machine
  * accepts `stop` ONLY from `running` — quit during `starting` rejects with
- * E-VAL-015, sends no signal, orphans the child and never runs
+ * E-VAL-017, sends no signal, orphans the child and never runs
  * cleanupMaterialized; quit during `stopping` does not await the in-flight
  * stop); fix: "Add a supervisor forceStop()/kill-from-any-state used by
  * teardown … Make teardown await any in-flight stop before requestQuit";

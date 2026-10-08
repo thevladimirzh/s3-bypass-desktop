@@ -472,7 +472,7 @@ describe('OS-command failure → E-PLAT-002, toggle Off, change reported (FR-34,
     expect(result.error.nextStep, 'errors.md §4 next step').toContain(
       'The toggle was returned to Off',
     );
-    expect(result.error.nextStep).toContain('set the proxy manually per');
+    expect(result.error.nextStep).toContain('set the proxy manually (SOCKS host 127.0.0.1');
 
     // "attempt to restore snapshot … no partial proxy change is left
     // unreported" (§3.1 step 4 / errors.md §6): after the failing apply the

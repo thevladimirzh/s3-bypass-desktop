@@ -115,7 +115,8 @@ function commandFailedError(binary: string): AppError {
     title: 'System proxy change failed',
     cause: `The operating system command (${binary}) failed.`,
     nextStep:
-      'The toggle was returned to Off; set the proxy manually per E-PLAT-001 values, or retry.',
+      // M3-A (errors.md §0/§4, DV-64): the values themselves, never a code citation.
+      'The toggle was returned to Off; set the proxy manually (SOCKS host 127.0.0.1, port 10808), or retry.',
   };
 }
 

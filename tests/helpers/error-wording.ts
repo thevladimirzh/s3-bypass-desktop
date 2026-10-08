@@ -154,6 +154,18 @@ export const WORDING_BY_CODE: Readonly<Record<string, WordingPins>> = {
     // amendment) — this substring fails until GREEN rewords the nextStep.
     nextStep: 'Reinstall the app; on macOS, allow the unsigned app per the Gatekeeper instructions',
   },
+  'E-VAL-016': {
+    code: 'E-VAL-016',
+    title: 'No profile imported yet',
+    cause: 'The tunnel cannot start because no profile has been imported.',
+    nextStep: 'Import a profile first, then click Start.',
+  },
+  'E-VAL-017': {
+    code: 'E-VAL-017',
+    title: 'Action unavailable in the current state',
+    cause: 'is not valid while the core is',
+    nextStep: 'Wait for the current step to finish, then try again.',
+  },
 };
 
 /**

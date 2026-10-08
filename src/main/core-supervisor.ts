@@ -257,7 +257,7 @@ function launchFailedError(failure: Error | null): AppError {
     title: 'The tunnel could not be launched',
     cause: `The tunnel engine failed to launch (${plain}).`,
     nextStep:
-      'Reinstall the app; on macOS, allow the unsigned app per the Gatekeeper instructions (E-PLAT-005).',
+      'Reinstall the app; on macOS, allow the unsigned app per the Gatekeeper instructions.',
   };
 }
 

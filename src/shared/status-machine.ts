@@ -46,12 +46,12 @@ export const INITIAL_STATUS: StatusSnapshot = {
 
 /**
  * Code returned for a rejected (illegal) transition. `docs/analysis/errors.md`
- * defines no dedicated "invalid state transition" code; `E-VAL-015` is the
- * closest documented match — a request rejected because of the current core
- * state, fired before any process is spawned, leaving app state unchanged
- * (errors.md §0, §1, §6 recovery matrix).
+ * defines no generic "invalid state transition" code — M3-A amendment (DV-64):
+ * `E-VAL-017` is it (was mislabelled `E-VAL-015`, which stays the *import-gate*
+ * code of FR-07), fired before any process is spawned, leaving app state
+ * unchanged (errors.md §0, §1, §6 recovery matrix).
  */
-const INVALID_TRANSITION_CODE = 'E-VAL-015';
+const INVALID_TRANSITION_CODE = 'E-VAL-017';
 
 /**
  * The complete legal transition table (data-flows §2.3). Every

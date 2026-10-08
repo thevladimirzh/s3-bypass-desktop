@@ -326,7 +326,7 @@ vi.mock('../../src/main/system-proxy', async (importOriginal) => {
             title: 'System proxy change failed',
             cause: 'The operating system command (networksetup) failed.',
             nextStep:
-              'The toggle was returned to Off; set the proxy manually per E-PLAT-001 values, or retry.',
+              'The toggle was returned to Off; set the proxy manually (SOCKS host 127.0.0.1, port 10808), or retry.',
           },
         };
       }

@@ -55,7 +55,7 @@
  *     `stopped`, nothing spawns, NO emissions):
  *       · binary exists             → else { ok:false, E-IO-004 }  (FR-14)
  *       · port 10808 free           → else { ok:false, E-IO-003 }  (FR-15)
- *       · state ∈ {stopped,crashed} → else { ok:false, E-VAL-015 } (FR-18)
+ *       · state ∈ {stopped,crashed} → else { ok:false, E-VAL-017 } (FR-18)
  *  2. state → `starting`; materialize T from `config`: merge the app-owned
  *     inbound (listen 127.0.0.1:10808), resolve relative paths from T's dir
  *     (FR-22), write mode 0600, never log the path (FR-23).
