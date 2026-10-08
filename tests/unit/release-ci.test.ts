@@ -65,10 +65,10 @@
  * on the absent `coverage`/`e2e` jobs in ci.yml, TC-PKG-14 on the absent
  * manifest script (ENOENT). Baseline untouched: 229 passed / 0 failed.
  */
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';

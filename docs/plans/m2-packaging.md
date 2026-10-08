@@ -100,7 +100,10 @@ pattern of DV-36/DV-37.
       `53c052e` (TC-PKG-11..14, observed 4 failed | 229 passed) → GREEN in this
       commit (`release.yml` + `coverage`/`e2e` jobs + `release-manifest.mjs`;
       233 passed | 0 failed; RED-test correction DV-44; G-05 closed in
-      acceptance-m1-27.md).
+      acceptance-m1-27.md). CI run `37712854252`: **coverage job green**; the
+      lint failure in the new test file was caught there and fixed with a
+      retraction of the piped exit-0 claims (DV-45) — checks/e2e verdicts land
+      on the follow-up run.
 - [ ] **M2-08** · devops · **S** · deps: M2-07 · `todo`
       Live `npm audit` evidence for the packaging chain (issue #2, M0-19 S4-5):
       record the output in `docs/qa/security-m2-audit.md`, triage highs into
