@@ -150,12 +150,21 @@ pattern of DV-36/DV-37.
 
 ### Phase E — Real-binary verification & acceptance
 
-- [ ] **M2-10** · qa · **L** · deps: M2-04 · `todo`
+- [x] **M2-10** · qa · **L** · deps: M2-04 · `done`
       Real-binary integration (strategy D-4: fake-core → pinned binary): supervisor
       spawn / ready / exit behavior against the bundled core. Needs a free
       `127.0.0.1:10808`, so the suite runs in CI or a VPN-off window (the Q9
       pattern); capture the **authoritative coverage number** in the same window
       (G-05).
+      Evidence: RED `328f446` (TC-02-21..24, new file
+      `tests/unit/core-supervisor-real.test.ts`, DV-53) → CI run
+      `37760697553` **all 4 jobs green**: `checks (macos-latest)` +
+      `checks (ubuntu-latest)` 264 passed each (the suite runs there —
+      venue per the plan row, `prepare:core` staged in-job), `coverage`
+      green with the suite included; **G-05 number re-measured with the
+      real-binary rows: 85.23 % lines** (84.49 % stmts / 73.17 % branch /
+      87.2 % funcs, ≥ 80 gate). No src change — the pinned binary accepted
+      the materialized T as-written (boot-check first, DV-53).
 - [x] **M2-11** · developer · **M** · deps: M2-04 · `done`
       Issue #19 (filed from M1-27b D-10): crash-path surfacing — quit-time
       `E-PLAT-003` persistence (FR-35), the `errors.md` §6 crash branch, and the

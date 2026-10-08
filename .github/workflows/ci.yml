@@ -62,6 +62,9 @@ jobs:
   # M2-07 / G-05: the coverage gate lands here after the authoritative
   # number was measured first (84.59% lines, full suite, probe run
   # 37711514257 — m2-test-plan §10/DV-43) >= thresholds.lines 80.
+  # M2-10 / DV-53 re-measured WITH the real-binary suite included:
+  # 85.23% lines (84.49% stmts / 73.17% branch / 87.2% funcs), run
+  # 37760697553 — the comment tracks the CURRENT authoritative number.
   coverage:
     name: coverage (>=80% lines)
     runs-on: ubuntu-latest
