@@ -679,6 +679,31 @@ describe('system-proxy restore hook + execFile executor seam (FR-35, PR-08)', ()
         'shell:true anywhere (injection guard, M1-20)',
     ).toBe(false);
   });
+
+  it('systemProxy.executor.execFileCarriesKillTimeout', () => {
+    // TC-04-24 — S5-15 (issue #22): a hung networksetup/gsettings must not
+    // strand the restore/quit path — the execFile executor carries an
+    // explicit kill timeout, and the killed error lands on the EXISTING
+    // command-failure convention (non-numeric error.code → -1, fail-closed).
+    // The runtime half of the executor seam stays TC-05-17's journey (DV-30
+    // style); this is the structural pin on the seam itself.
+    const source = indexSource();
+    expect(
+      /timeout:\s*EXEC_TIMEOUT_MS/.test(source),
+      'S5-15/issue #22: runExecFile must pass timeout: EXEC_TIMEOUT_MS to execFile — ' +
+        'without it a hung platform command blocks the restore/quit path forever',
+    ).toBe(true);
+    expect(
+      /const EXEC_TIMEOUT_MS = 10_000/.test(source),
+      'S5-15/issue #22: the kill budget is a NAMED 10 s const — the window-lifecycle ' +
+        'per-step teardown bound (issue #22) must outlive it',
+    ).toBe(true);
+    expect(
+      /typeof error\.code === 'number' \? error\.code : -1/.test(source),
+      'S5-15/issue #22: a timeout lands on the existing fail-closed -1 command-failure ' +
+        'convention (a killed error.code is not a number)',
+    ).toBe(true);
+  });
 });
 
 describe('launch-shows-window native wiring (FR-38 amended, issue #25, AC-05.1 — TC-05-23)', () => {

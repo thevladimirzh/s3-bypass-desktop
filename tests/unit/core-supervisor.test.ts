@@ -95,7 +95,7 @@
  * skip, or delete.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import { type ChildProcess, spawn } from 'node:child_process';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -888,3 +888,78 @@ describe('supervisor — structural guards (PR-08, plan M1-15 purity)', () => {
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
+
+describe('pre-M3 fix batch #22 — M1-25 lows S5-8 / S5-15 (issue #22)', () => {
+  it('supervisor.lineReader.bufferCapForcesSegmentFlush', async () => {
+    // TC-02-28 — S5-8 (issue #22): `attachLineReader` grew its buffer with
+    // every chunk and only ever emitted on '\n' — a child line without a
+    // newline grew the MAIN process buffer unbounded (the collector's
+    // 4096-char cap applies only AFTER a line completes). Fixture mode
+    // `gibberish` streams 20 x 8320 'x' bytes with NO newline; the reader
+    // must force-flush 64 KB segments through the (redaction-first)
+    // emitLine WHILE the child is still alive, and deliver the remainder
+    // on end — capped, never lost.
+    const rig = await createRig({ mode: 'gibberish' });
+    const result = await rig.supervisor.start();
+    expect(result.ok, 'fixture sanity: the gibberish child reaches running').toBe(true);
+
+    const segments = () =>
+      rig.sink.filter((line) => line.stream === 'stdout' && line.text.length === 65_536);
+    await waitFor(
+      () => segments().length >= 2,
+      4_000,
+      'TC-02-28/S5-8: the capped reader force-flushes 64 KB segments while the child streams',
+    );
+    expect(
+      segments().every((line) => /^x+$/.test(line.text)),
+      'each forced segment is verbatim child data (the rig sink sits pre-redaction)',
+    ).toBe(true);
+
+    await rig.supervisor.stop();
+    const total = rig.sink
+      .filter((line) => line.stream === 'stdout' && /^x+$/.test(line.text))
+      .reduce((count, line) => count + line.text.length, 0);
+    expect(total, 'S5-8: the cap must not LOSE data — end flushes the remainder').toBe(20 * 8320);
+  }, 15_000);
+
+  it('supervisor.stop.lastResortSettlesWhenGrandchildHoldsStdio', async () => {
+    // TC-02-29 — S5-15 (issue #22): fixture mode `hold-stdio` ignores
+    // SIGTERM, binds the probe port via a binder that dies with its
+    // parent, and leaves a `(sleep 20)` grandchild HOLDING the stdio
+    // pipes — after the SIGKILL escalation 'close' cannot fire for 20 s,
+    // so `exited` never settles inside the stop budget and stop() hung
+    // forever. It must settle through the last-resort bound (fail-open
+    // after the best-effort kill); the eventual real 'close' is a no-op.
+    const rig = await createRig({ mode: 'hold-stdio' });
+    try {
+      const started = await rig.supervisor.start();
+      expect(started.ok, 'fixture sanity: hold-stdio reaches running (binder binds)').toBe(true);
+
+      const startedAt = Date.now();
+      const result = await Promise.race([
+        rig.supervisor.stop(),
+        new Promise<'hung'>((resolve) => {
+          setTimeout(() => resolve('hung'), 12_000);
+        }),
+      ]);
+      const elapsed = Date.now() - startedAt;
+
+      expect(
+        result !== 'hung' && result.ok,
+        'TC-02-29/S5-15: stop() must settle through the last-resort bound — a ' +
+          'grandchild-held stdio cannot strand the stop',
+      ).toBe(true);
+      expect(rig.states(), 'the forced exit path emits stopped').toContain('stopped');
+      expect(elapsed, 'it really waited out SIGTERM (2 s) + the grace window').toBeGreaterThan(
+        4_500,
+      );
+      expect(elapsed, 'and settled at the bound (~7 s), not later').toBeLessThan(10_500);
+    } finally {
+      // RED hygiene (DV-62): with the fix absent stop() hangs on the held
+      // stdio; reaping the `(sleep 20)` grandchild closes the pipes so the
+      // real 'close' fires and the DV-33 rig hooks can complete. In GREEN
+      // this is a harmless no-op (the child is already gone).
+      spawnSync('pkill', ['-f', '^sleep 20$']);
+    }
+  }, 20_000);
+});

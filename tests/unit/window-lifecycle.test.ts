@@ -97,7 +97,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { CoreState } from '../../src/shared/status-machine';
 import {
@@ -424,6 +424,52 @@ describe('tray Quit teardown (US-05 AC-05.5, FR-19, data-flows §5) — TC-05-05
       recorder.calls,
       'a restoreProxy failure must never prevent requestQuit — the app exits fully',
     ).toEqual(['stopCore', 'restoreProxy', 'requestQuit']);
+  });
+
+  it('quitTeardown.hungStepBoundedRequestQuitStillRunsLast', async () => {
+    // AC-05.5 "the app exits fully" — TC-05-26 / S5-15 (issue #22): a
+    // teardown step that HANGS (not throws — a networksetup exec without a
+    // kill timeout, a core stop stuck on a grandchild-held stdio) used to
+    // strand the whole quit: requestQuit never ran. Each step is now
+    // bounded by TEARDOWN_STEP_BUDGET_MS (12 s, above the supervisor's own
+    // 7 s stop bound and the 10 s exec kill budget); after the bound the
+    // step is abandoned AS its failure and the chain proceeds, so
+    // requestQuit still runs last. Whether the promise rejects stays NOT
+    // pinned (house style — cf. the stopCore-failure case above).
+    const { lifecycle, recorder } = await loadLifecycle({
+      stopCore: () => new Promise<void>(() => {}),
+    });
+
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const teardown = lifecycle.handleBeforeQuit().then(
+        () => {
+          settled = true;
+        },
+        () => {
+          settled = true;
+        },
+      );
+
+      await vi.advanceTimersByTimeAsync(0);
+      expect(recorder.calls, 'step 1 starts and hangs on the never-settling promise').toEqual([
+        'stopCore',
+      ]);
+      expect(settled, 'a hung step means the teardown is still pending').toBe(false);
+
+      await vi.advanceTimersByTimeAsync(12_000);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(
+        recorder.calls,
+        'S5-15/issue #22: the per-step bound abandons the hung step — the proxy ' +
+          'revert still runs and requestQuit is still LAST (AC-05.5 exits fully)',
+      ).toEqual(['stopCore', 'restoreProxy', 'requestQuit']);
+      expect(settled, 'the teardown settles once the bound + the last step ran').toBe(true);
+      await teardown;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

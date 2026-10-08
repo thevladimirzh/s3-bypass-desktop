@@ -40,6 +40,19 @@
 #                     TC-02-06 / S5-2; M1-26 batch, DV-32). Without a `-c`
 #                     arg (standalone `--mode=` debugging) the placeholder
 #                     `<config>` is printed instead — no live paths leak.
+#     gibberish       binds like `sleep` (READY on stdout), then streams
+#                     20 x 8320 'x' bytes with NO newline and keeps running
+#                     until killed — the no-newline flood repro for the
+#                     unbounded line-reader buffer, TC-02-28 (issue #22,
+#                     M1-25 finding S5-8; pre-M3 fix batch)
+#     hold-stdio      binds like `sleep` but IGNOREs SIGTERM (`trap '' TERM`)
+#                     and leaves a `(sleep 20)` grandchild holding the stdio
+#                     pipes; the port binder is an INLINE node one-liner
+#                     (stdout to /dev/null) that exits as soon as this parent
+#                     dies (200 ms pid poll) — the PORT never leaks, only the
+#                     stdio stays held (<= 20 s). Repro for the stop
+#                     last-resort bound, TC-02-29 (issue #22, M1-25 finding
+#                     S5-15; pre-M3 fix batch)
 #     anything else   diagnostic on stderr, exit 64 (fixture misuse)
 #
 #   argv     every invocation appends `### pid=$$` + one `arg=<value>` line per
@@ -170,6 +183,47 @@ case "$mode" in
     printf 'fake-core: simulated fatal storage failure\n' >&2
     printf 'failed to open %s: access EXAMPLEACCESSKEYID01 denied\n' "$canary_cfg" >&2
     exit 3
+    ;;
+  gibberish)
+    # TC-02-28 (issue #22, S5-8): a flood WITHOUT newlines — the reader
+    # buffer must cap at 64 KB force-flushed segments instead of growing
+    # unbounded until stream end.
+    trap 'on_term' TERM
+    start_binder
+    printf 'READY\n'
+    chunk=$(printf '%08320d' 0 | tr '0' 'x')
+    i=1
+    while [ "$i" -le 20 ]; do
+      printf '%s' "$chunk"
+      i=$((i + 1))
+    done
+    while :; do sleep 1; done
+    ;;
+  hold-stdio)
+    # TC-02-29 (issue #22, S5-15): TERM is ignored and a grandchild holds
+    # the stdio pipes — 'close' (and thus the supervisor's `exited`) cannot
+    # fire within the stop budget. The inline binder frees the PORT the
+    # moment this parent dies, so no later case inherits a held listener.
+    trap '' TERM
+    FAKE_CORE_PARENT=$$ node -e '
+      const net = require("node:net");
+      const parent = Number(process.env.FAKE_CORE_PARENT);
+      const port = Number(process.env.FAKE_CORE_PORT || 10808);
+      const server = net.createServer();
+      server.listen(port, "127.0.0.1");
+      const poll = setInterval(() => {
+        try {
+          process.kill(parent, 0);
+        } catch {
+          clearInterval(poll);
+          server.close(() => process.exit(0));
+          setTimeout(() => process.exit(0), 1000); // do not wait on a lingering probe socket
+        }
+      }, 200);
+    ' >/dev/null 2>&1 &
+    (sleep 20) &
+    printf 'READY\n'
+    while :; do sleep 1; done
     ;;
   *)
     printf 'fake-core: unknown mode: %s\n' "$mode" >&2
