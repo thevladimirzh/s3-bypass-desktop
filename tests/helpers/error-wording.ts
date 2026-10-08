@@ -7,10 +7,13 @@
  *  - `tests/unit/profile-validator.test.ts` — fixture-driven rejections, which
  *    run every rejection through the same `expectHumanError` contract.
  *
- * `WordingRow`, `FORBIDDEN` and `expectHumanError` are moved here verbatim
- * from `errorWording.test.ts` (deviation DV-17, docs/qa/m1-test-plan.md §14) so
- * the two suites can never drift apart; the existing `E-STOR-*` rows and their
- * assertions stay in `errorWording.test.ts` untouched (strategy §5.2).
+ * `WordingRow`, `FORBIDDEN`, `expectHumanError`, plus the M3-A additions
+ * (`WORDING_BY_CODE` / `expectHumanWording` — the contract for surfaces driven
+ * by sibling suites) are here so every consumer applies ONE contract; the
+ * existing `E-STOR-*` rows and their assertions stay in `errorWording.test.ts`
+ * untouched (strategy §5.2). The M3-A hardening extended `FORBIDDEN` with the
+ * errors.md §0 amendment (2026-10-08): no internal `E-…-###` code and no OS
+ * errno token may appear in title/cause/nextStep.
  *
  * Field docs: `title` is the exact `docs/analysis/errors.md` title (NFR-5a,
  * ≤ 60 chars, no code in title); `cause` / `nextStep` are required substrings
@@ -64,14 +67,131 @@ export interface WordingRow {
 }
 
 /** §0 global rules + NFR-2: what must NEVER appear in user-visible error text. */
-export const FORBIDDEN: ReadonlyArray<{ readonly label: string; readonly pattern: RegExp }> = [
+export const FORBIDDEN: ReadonlyArray<{
+  readonly label: string;
+  readonly pattern: RegExp;
+  /**
+   * M3-A: true = the rule is checked against the USER text only
+   * (title/cause/nextStep) — the `code` field legitimately carries an
+   * `E-…-###` value by design (errors.md §0: the code is internal, it is the
+   * citations INSIDE the user text that are forbidden).
+   */
+  readonly userTextOnly?: boolean;
+}> = [
   { label: 'a raw stack trace', pattern: /\n\s+at\s+\S+\(/ },
   { label: 'an exception class name', pattern: /SyntaxError|TypeError|ReferenceError|RangeError/ },
   { label: 'an "Error:" prefix', pattern: /Error:/ },
   { label: 'raw config JSON (accessKey)', pattern: /"accessKey"/ },
   { label: 'raw config JSON (secretKey)', pattern: /"secretKey"/ },
   { label: 'raw config JSON (outbounds)', pattern: /"outbounds"/ },
+  // M3-A hardening (errors.md §0 amended 2026-10-08): the user text never
+  // cites ANOTHER internal code and never leaks OS errno tokens — the `code`
+  // field carries the code, the words stay plain. Added after the audit
+  // caught `E-PLAT-001`/`E-PLAT-005` citations inside nextStep sentences.
+  {
+    label: 'an internal error code',
+    pattern: /\bE-(?:VAL|IO|CORE|PLAT|STOR)-\d{3}\b/,
+    userTextOnly: true,
+  },
+  {
+    label: 'an operating-system errno token',
+    pattern: /\b(?:ENOENT|EACCES|EPERM|EAGAIN|EBUSY|EMFILE|ENFILE|ENOTDIR|EISDIR)\b/,
+    userTextOnly: true,
+  },
 ];
+
+/**
+ * M3-A (m3-test-plan TC-POL-02): doc-exact wording pins for codes whose
+ * surfaces are driven by the *sibling* suites (the supervisor spawns real
+ * children — the wording contract travels to THEM via `expectHumanWording`
+ * instead of duplicating the port-lock machinery here).
+ */
+export interface WordingPins {
+  readonly code: string;
+  readonly title: string;
+  /** Required substring of the `errors.md` cause sentence. */
+  readonly cause: string;
+  /** Required substring of the `errors.md` next-step sentence. */
+  readonly nextStep: string;
+}
+
+export const WORDING_BY_CODE: Readonly<Record<string, WordingPins>> = {
+  'E-IO-003': {
+    code: 'E-IO-003',
+    title: 'Local port 10808 is busy',
+    cause: 'Another program is already using',
+    nextStep: 'Quit that program, then click Start.',
+  },
+  'E-IO-004': {
+    code: 'E-IO-004',
+    title: 'Core binary check failed',
+    cause: 'was not found in the app installation',
+    nextStep: 'Reinstall the app.',
+  },
+  'E-IO-006': {
+    code: 'E-IO-006',
+    title: 'Could not prepare the tunnel config',
+    cause: 'The temporary config file could not be written',
+    nextStep: 'Free disk space / check permissions, then Start again.',
+  },
+  'E-CORE-001': {
+    code: 'E-CORE-001',
+    title: 'The tunnel stopped unexpectedly',
+    cause: 'The tunnel engine exited with code',
+    nextStep: 'Click Start to try again; if it repeats, check the Logs view.',
+  },
+  'E-CORE-002': {
+    code: 'E-CORE-002',
+    title: 'The tunnel did not start in time',
+    cause: 'The tunnel engine did not become ready within',
+    nextStep: 'Click Start again; if it repeats, check the Logs view.',
+  },
+  'E-CORE-003': {
+    code: 'E-CORE-003',
+    title: 'The tunnel could not be launched',
+    cause: 'The tunnel engine failed to launch',
+    // M3-A RED pin: the doc citation "(E-PLAT-005)" is GONE (errors.md §0
+    // amendment) — this substring fails until GREEN rewords the nextStep.
+    nextStep: 'Reinstall the app; on macOS, allow the unsigned app per the Gatekeeper instructions',
+  },
+};
+
+/**
+ * M3-A (TC-POL-02): the shared NFR-5 contract for a surface that produces the
+ * error itself (lookup by `error.code`) — same field checks, FORBIDDEN rules
+ * and canary scan as `expectHumanError`.
+ */
+export function expectHumanWording(context: string, error: AppError): void {
+  const pins = WORDING_BY_CODE[error.code];
+  if (pins === undefined) {
+    throw new Error(`no WORDING_BY_CODE pins declared for ${error.code} — extend the table`);
+  }
+  expect(error.title, `${context}: exact errors.md title (NFR-5a)`).toBe(pins.title);
+  expect(error.title.length, `${context}: title ≤ 60 chars (errors.md §0)`).toBeLessThanOrEqual(60);
+  expect(error.title, `${context}: the code never appears in the title`).not.toContain(pins.code);
+  expect(error.cause, `${context}: cause must follow the errors.md template (NFR-5b)`).toContain(
+    pins.cause,
+  );
+  expect(
+    error.nextStep,
+    `${context}: next step must follow the errors.md template (NFR-5c)`,
+  ).toContain(pins.nextStep);
+
+  const text = tripleText(error);
+  const userText = `${error.title} ${error.cause} ${error.nextStep}`;
+  for (const rule of FORBIDDEN) {
+    expect(
+      rule.pattern.test(rule.userTextOnly === true ? userText : text),
+      `${context}: user-visible error must not contain ${rule.label} (errors.md §0, FR-48)`,
+    ).toBe(false);
+  }
+  for (const canary of readCanaries()) {
+    expect(
+      text.includes(canary),
+      `${context}: no secret may appear in user-visible error text (NFR-2, §8.4 SECRET)`,
+    ).toBe(false);
+  }
+}
 
 /** Strategy §7 shared assertion — every row passes the same NFR-5 contract. */
 export function expectHumanError(row: WordingRow, error: AppError): void {
@@ -91,9 +211,10 @@ export function expectHumanError(row: WordingRow, error: AppError): void {
   ).toContain(row.nextStep);
 
   const text = tripleText(error);
+  const userText = `${error.title} ${error.cause} ${error.nextStep}`;
   for (const rule of FORBIDDEN) {
     expect(
-      rule.pattern.test(text),
+      rule.pattern.test(rule.userTextOnly === true ? userText : text),
       `${row.id}: user-visible error must not contain ${rule.label} (errors.md §0, FR-48)`,
     ).toBe(false);
   }

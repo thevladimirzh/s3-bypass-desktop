@@ -96,7 +96,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -130,6 +130,7 @@ import {
   waitForPortFree,
   waitForPortState,
 } from '../helpers/core-supervisor-stub';
+import { expectHumanWording } from '../helpers/error-wording';
 import { readConfigFixture } from '../helpers/profile-validator-stub';
 import { tripleText } from '../helpers/secret-store-stub';
 
@@ -478,8 +479,9 @@ describe('supervisor — spawn → running (FR-13, FR-21; data-flows (b) steps 2
       expect(
         second.error.code,
         'TC-02-07/FR-18: the rejection carries the status machine’s invalid-transition ' +
-          'code (E-VAL-015)',
-      ).toBe('E-VAL-015');
+          'code (E-VAL-017 since M3-A — was mislabelled E-VAL-015, errors.md §1 amendment)',
+      ).toBe('E-VAL-017');
+      expectHumanWording('TC-02-07 (errors.md §1, E-VAL-017)', second.error);
     }
 
     // Poll for the absence of a second spawn rather than sleeping and hoping.
@@ -586,6 +588,7 @@ describe('supervisor — crash (FR-17, errors.md §3/§6)', () => {
       },
       'TC-02-06 (errors.md §3, E-CORE-001)',
     );
+    expectHumanWording('TC-02-06 (errors.md §3, E-CORE-001)', error);
     expect(error.cause, 'TC-02-06/FR-17: the cause must name the actual exit code 3').toMatch(
       /exited with code 3\b/,
     );
@@ -678,6 +681,7 @@ describe('supervisor — start failures (FR-14, FR-15, FR-20)', () => {
       },
       'TC-02-04 (errors.md §2, E-IO-004)',
     );
+    expectHumanWording('TC-02-04 (errors.md §2, E-IO-004)', result.error);
     expect(
       rig.snapshots,
       'TC-02-04/FR-14: the pre-check runs BEFORE any transition — state stays stopped, ' +
@@ -724,6 +728,7 @@ describe('supervisor — start failures (FR-14, FR-15, FR-20)', () => {
       },
       'TC-02-05 (errors.md §2, E-IO-003)',
     );
+    expectHumanWording('TC-02-05 (errors.md §2, E-IO-003)', result.error);
     expect(
       `${result.error.title} ${result.error.cause} ${result.error.nextStep}`,
       'TC-02-05/FR-15: the message must name port 10808',
@@ -766,6 +771,7 @@ describe('supervisor — start failures (FR-14, FR-15, FR-20)', () => {
       },
       'TC-02-10 (errors.md §3, E-CORE-002)',
     );
+    expectHumanWording('TC-02-10 (errors.md §3, E-CORE-002)', result.error);
     expect(
       elapsed,
       'TC-02-10/FR-20 + A-11: the readiness threshold is 10 s — failing earlier is a ' +
@@ -790,6 +796,64 @@ describe('supervisor — start failures (FR-14, FR-15, FR-20)', () => {
       false,
     );
   }, 30_000);
+
+  it('supervisor.start.configWriteFails.documentedEio006NeverSpawns', async () => {
+    // TC-POL-02 (M3-A): E-IO-006 had NO wording pin anywhere (audit B-1).
+    // Trigger: a read-only temp area — mkdtempSync inside materializeConfig
+    // fails with EACCES, the caller maps it to the documented triple
+    // (errors.md §2, FR-23 defensive entry) without surfacing the raw
+    // reason; state stays stopped and NOTHING spawns.
+    const rig = await createRig(); // module load first: absence RED precedes any FS work
+    const ro = createScratch();
+    const previousTmp = process.env.TMPDIR;
+    process.env.TMPDIR = ro.dir;
+    chmodSync(ro.dir, 0o555);
+    try {
+      const result = await rig.supervisor.start();
+      expect(result.ok, 'TC-POL-02/FR-23: an unwritable temp area must refuse Start').toBe(false);
+      if (result.ok) throw new Error('unreachable: assertion above failed');
+      expect(result.error.code, 'TC-POL-02 (errors.md §2, E-IO-006)').toBe('E-IO-006');
+      expectHumanWording('TC-POL-02 (errors.md §2, E-IO-006)', result.error);
+      expect(rig.invocations(), 'TC-POL-02/FR-23: nothing spawns when T cannot be written').toEqual(
+        [],
+      );
+      expect(rig.supervisor.isRunning(), 'TC-POL-02: nothing is running after the refusal').toBe(
+        false,
+      );
+    } finally {
+      chmodSync(ro.dir, 0o755);
+      if (previousTmp === undefined) delete process.env.TMPDIR;
+      else process.env.TMPDIR = previousTmp;
+    }
+  }, 15_000);
+
+  it('supervisor.start.binaryNotExecutable.settlesDocumentedEcore003', async () => {
+    // TC-POL-02 (M3-A): E-CORE-003 had NO wording pin anywhere (audit B-2 —
+    // its nextStep also cited the internal `E-PLAT-005` code, which the M3-A
+    // FORBIDDEN hardening rejects). Trigger: the binary EXISTS (passes the
+    // FR-14 pre-check, which is a plain existsSync) but is not executable —
+    // spawn settles EACCES and the flow maps it to the documented triple
+    // (data-flows (b) step 4, errors.md §3).
+    const dir = createScratch();
+    const binaryPath = join(dir.dir, 'not-executable-core');
+    writeFileSync(binaryPath, '#!/bin/sh\nexit 0\n');
+    chmodSync(binaryPath, 0o644);
+    const rig = await createRig({ binaryPath });
+
+    const result = await rig.supervisor.start();
+    expect(
+      result.ok,
+      'TC-POL-02/data-flows (b) step 4: a failed spawn must settle Start as a failure',
+    ).toBe(false);
+    if (result.ok) throw new Error('unreachable: assertion above failed');
+    expect(result.error.code, 'TC-POL-02 (errors.md §3, E-CORE-003)').toBe('E-CORE-003');
+    expectHumanWording('TC-POL-02 (errors.md §3, E-CORE-003)', result.error);
+    const states = rig.states();
+    expect(
+      states[states.length - 1],
+      'TC-POL-02/§2.3: a launch failure ends at crashed (recovery matrix §6)',
+    ).toBe('crashed');
+  }, 15_000);
 });
 
 describe('supervisor — structural guards (PR-08, plan M1-15 purity)', () => {

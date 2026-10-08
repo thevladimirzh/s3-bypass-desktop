@@ -50,7 +50,7 @@ the DV-36/DV-37 pattern.
       hardening, UX-surface pins (hint/footer/quit-failure/states), icon &
       naming config pins, i18n seam, user-docs consistency; declare the
       `TC-POL-nn` family and the deviations log in the M2-test-plan style.
-- [ ] **M3-03** · qa · **M** · deps: M3-02 · `todo`
+- [x] **M3-03** · qa · **M** · deps: M3-02 · `done` (RED, 2026-10-08 — m3-test-plan §10/§11)
       RED for the audit (scoping 2026-10-08): new wording rows for the FIVE
       unpinned triples — E-IO-006 config write, E-CORE-003 spawn (its nextStep
       currently cites `E-PLAT-005`), E-IO-001 file read (strategy §7 promised

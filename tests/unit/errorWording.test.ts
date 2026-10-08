@@ -37,11 +37,14 @@
  * — ABSENCE RED until that module lands. Existing `E-STOR-*`/`E-VAL-*` rows
  * are untouched (strategy §5.2).
  */
-import { writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { afterAll, beforeAll, beforeEach, describe, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { INITIAL_STATUS, transition } from '../../src/shared/status-machine';
+import { loadErrorTriples } from '../helpers/error-triples-stub';
 import { E_VAL_WORDING_ROWS, expectHumanError, type WordingRow } from '../helpers/error-wording';
 import {
   captureAppError,
@@ -241,4 +244,118 @@ describe('error wording table — E-PLAT rows (NFR-5, errors.md §4) — TC-NFR5
       expectHumanError(row, error);
     });
   }
+});
+
+/**
+ * M3-A batch (m3-test-plan §2, TC-POL-01) — the wording-pass audit rows:
+ * five codes that had NO table row at all (E-IO-001, E-IO-002, E-STOR-005,
+ * and the two errors.md §1 amendments E-VAL-016/E-VAL-017). Wording source:
+ * the M3-A-amended `docs/analysis/errors.md` (§0 no-codes rule, §1 two new
+ * rows, §3/§4 dropped code citations). Additive only (DV-07); existing rows
+ * above are untouched.
+ *
+ * E-IO-001/E-IO-002/E-VAL-016 drive the new single-source module
+ * `src/shared/error-triples.ts` (ABSENCE RED via loadErrorTriples until
+ * M3-04 GREEN moves the literals out of the electron-bound entry files);
+ * E-STOR-005 drives the REAL secret store over a read-only data dir (the
+ * documented defensive entry, FR-54); E-VAL-017 drives the pure
+ * state-machine reducer (the generic illegal-transition rejection, FR-18).
+ */
+const M3_A_WORDING_ROWS: readonly WordingRow[] = [
+  {
+    id: 'fileReadFailed',
+    code: 'E-IO-001',
+    trigger: 'FILE_READ_FAILED triple — the picked file vanished between dialog and read (FR-06)',
+    title: 'Could not read the profile file',
+    cause: 'The file could not be read',
+    nextStep: 'Check the file still exists, then import again.',
+    run: async () => (await loadErrorTriples()).FILE_READ_FAILED,
+  },
+  {
+    id: 'dialogFailed',
+    code: 'E-IO-002',
+    trigger: 'DIALOG_FAILED triple — the native picker itself failed (FR-01 defensive entry)',
+    title: 'File dialog could not open',
+    cause: 'The system file dialog failed to open.',
+    nextStep: 'Try again; if it repeats, restart the app.',
+    run: async () => (await loadErrorTriples()).DIALOG_FAILED,
+  },
+  {
+    id: 'stor005ProfileSaveFailed',
+    code: 'E-STOR-005',
+    trigger:
+      'saveProfile() over a read-only data dir — the encrypted write fails (FR-54 defensive entry); ' +
+      'the row also pins the M3-A dedup: ONE literal in src/shared/error-triples.ts',
+    title: 'Profile could not be saved',
+    cause: 'Writing the encrypted profile to the app data directory failed',
+    nextStep: 'Free disk space / fix permissions, then import again.',
+    run: async () => {
+      const store = await loadSecretStore();
+      chmodSync(dataDir, 0o555);
+      try {
+        return await captureAppError(() => store.saveProfile(CONFIG), 'E-STOR-005');
+      } finally {
+        chmodSync(dataDir, 0o755);
+      }
+    },
+  },
+  {
+    id: 'noProfileStepZeroRefusal',
+    code: 'E-VAL-016',
+    trigger: 'NO_PROFILE triple — Start clicked before any import (FR-12 step-0 refusal)',
+    title: 'No profile imported yet',
+    cause: 'The tunnel cannot start because no profile has been imported.',
+    nextStep: 'Import a profile first, then click Start.',
+    run: async () => (await loadErrorTriples()).NO_PROFILE,
+  },
+  {
+    id: 'illegalTransitionRejection',
+    code: 'E-VAL-017',
+    trigger:
+      'transition(INITIAL_STATUS, "stop") — any illegal (state, event) pair is refused by ' +
+      'the reducer (data-flows §2.3, FR-18)',
+    title: 'Action unavailable in the current state',
+    cause: 'is not valid while the core is',
+    nextStep: 'Wait for the current step to finish, then try again.',
+    run: async () => {
+      const result = transition(INITIAL_STATUS, 'stop');
+      if (result.ok) throw new Error('TC-POL-01: stop from stopped must be a rejection');
+      return result.error;
+    },
+  },
+];
+
+describe('error wording table — M3-A audit rows (E-IO/E-STOR/E-VAL) — TC-POL-01', () => {
+  for (const row of M3_A_WORDING_ROWS) {
+    it(`errorWording.${row.id}.nfr5TripleExactNoStack`, async () => {
+      const error = await row.run();
+      expectHumanError(row, error);
+    });
+  }
+
+  it('errorWording.e005Dedup.mainModulesCarryNoInlineE005Literal', () => {
+    // M3-A audit B-5: the E-STOR-005 triple literal was duplicated —
+    // index.ts and secret-store.ts each inlined their own copy (drift
+    // risk). GREEN moves the literal to src/shared/error-triples.ts and
+    // both consumers import it; this raw-text pin (DV-36 pattern) keeps
+    // the copies from ever coming back.
+    const mainEntry = readFileSync(
+      fileURLToPath(new URL('../../src/main/index.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(
+      mainEntry,
+      'M3-A: index.ts must import the E-STOR-005 triple from the shared module, ' +
+        'never inline its own copy',
+    ).not.toMatch(/code:\s*'E-STOR-005'/);
+    const secretStore = readFileSync(
+      fileURLToPath(new URL('../../src/main/secret-store.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(
+      secretStore,
+      'M3-A: secret-store.ts must reference the shared E-STOR-005 triple — ' +
+        'exactly ONE literal across the app',
+    ).not.toMatch(/code:\s*'E-STOR-005'/);
+  });
 });

@@ -382,9 +382,10 @@ describe('start/stop control — main-side guards and delegation (FR-12, data-fl
   it('supervisor.startControl.noProfileMainGuardNeverConstructsSupervisor', async () => {
     // TC-02-03 main half: with no stored profile, Start is refused BEFORE any
     // supervisor exists (step 0 guard) — no spawn, no status transition, no
-    // push — and the refusal is an NFR-5 triple. errors.md documents NO code
-    // for this case (FR-12 pins only the renderer hint), so only the triple
-    // SHAPE is pinned here: no code may be invented (DV-19/DV-28).
+    // push — and the refusal is an NFR-5 triple. M3-A amendment (errors.md §1,
+    // 2026-10-08): the case now HAS a documented code — `E-VAL-016` — so the
+    // internal `E-VAL-*` placeholder of DV-19/DV-28 is gone and the exact code
+    // is pinned here (the wording itself is pinned by the TC-POL-01 table row).
     const rig = await makeRig(null);
 
     const result = await rig.wiring.handleStart();
@@ -401,6 +402,10 @@ describe('start/stop control — main-side guards and delegation (FR-12, data-fl
           `no-profile refusal must be an NFR-5 triple — error.${field} must not be empty`,
         ).toBeGreaterThan(0);
       }
+      expect(
+        result.error.code,
+        'M3-A/errors.md §1: the step-0 refusal carries the documented E-VAL-016',
+      ).toBe('E-VAL-016');
       expect(
         JSON.stringify(result.error),
         'the refusal must not leak a stack trace (FR-48 / NFR-5)',
