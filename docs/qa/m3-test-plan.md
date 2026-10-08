@@ -390,6 +390,21 @@ linux-ia32` / `darwin-ia32`. The verify step never even ran (it sits
   table + exports the seam → tag deleted and re-pushed; the empirical
   re-run outcome is appended below.
 
+#### Validation re-run — tag `v0.0.1-m310check` @ `5d61e44`, run `37846938932` (2026-10-09)
+
+- **Result: SUCCESS on all three legs** — `build (macos-latest)`,
+  `build (ubuntu-latest)`, `build rpm (fedora container)` all green.
+- Both mac archs empirically confirmed (issue #27 gate): the new step
+  `Verify both mac arch dmgs staged (issue #27)` = success (≥ 2 dmgs —
+  `--arm64 --x64` both built), `Build artifacts (electron-builder)` =
+  success, `SHA-256 manifest — written then re-verified` = success,
+  upload `artifacts-macOS` = 309 863 581 B (≈ double the single-dmg
+  M2-07 artifact) + `artifacts-Linux` 266 383 783 B + `artifacts-fedora`
+  104 030 552 B — every leg's `if-no-files-found: error` upload green.
+- DV-65 confirmed fixed in CI: the pack gate passed on the x64 legs it
+  had never actually processed before.
+- Tag deleted (local + remote) per the M2-07 pattern — no tag remains.
+
 #### DV-65 GREEN (2026-10-09)
 
 - Chain: prettier clean (incl. the script), typecheck rc=0, eslint rc=0.

@@ -113,7 +113,7 @@ the DV-36/DV-37 pattern.
 
 ### Phase F — darwin-x64 dmg leg (issue #27)
 
-- [x] **M3-10** · devops · **S** · deps: — · issue #27 · `done` (RED `e78988d` + GREEN, 2026-10-09 — 316/316, TC-PKG-21; validation tag run pending)
+- [x] **M3-10** · devops · **S** · deps: — · issue #27 · `done` (RED `e78988d` + GREEN `5d61e44` via DV-65 fix-forward, 316/316 → 13/13 TC-PKG-22; validation run `37846938932` = success on all 3 legs incl. both mac archs, tag deleted)
       `release.yml`: add the Intel leg (matrix entry / `--x64` dist args on the
       mac job); RED/GREEN config pin — the mac build asserts BOTH arch
       artifacts staged/built (rows continue the `TC-PKG-nn` family in
