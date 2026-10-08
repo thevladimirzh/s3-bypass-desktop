@@ -75,7 +75,7 @@ const EXACT_ROWS: ReadonlyArray<readonly [string, string]> = [
   ['logs.title', 'Logs'],
   ['logs.empty', 'No log lines yet.'],
   ['logs.copy', 'Copy logs'],
-  ['logs.clear', 'Clear logs'],
+  ['logs.clear', 'Clear'],
   ['app.tagline', 'Import a config — press Start — the internet works.'],
 ];
 
@@ -164,9 +164,9 @@ describe('TC-POL-05 — single EN strings module with a t(key) seam (M3-08)', ()
     }
 
     const logs = consumerCode('src/renderer/src/components/LogsView.tsx');
-    for (const literal of ["'No log lines yet.'", '>Copy logs<', 'Copy logs', 'Clear logs']) {
-      // 'Copy logs'/'Clear logs' appear as JSX text today; after the seam
-      // they exist only as t('logs.copy')/t('logs.clear') keys.
+    for (const literal of ["'No log lines yet.'", 'Copy logs', 'Clear']) {
+      // 'Copy logs'/'Clear' are the current JSX texts; after the seam they
+      // exist only as t('logs.copy')/t('logs.clear') keys.
       expect(logs.includes(literal), `M3-08: LogsView.tsx must not hardcode ${literal}`).toBe(
         false,
       );

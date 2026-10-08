@@ -289,6 +289,12 @@ results.)_
 - Observed GREEN in the RED batch: every EXISTING wording pin across the
   e2e/supervisor/proxy/logs/status suites — the M3-08 contract is that the
   seam re-exports exactly those strings, so nothing may move until GREEN.
+- Fixup (separate commit, `logs.clear` row): the survey assumed the clear
+  button reads `Clear logs` — the shipped JSX reads `Clear` (no test pins
+  it either). The row now pins the TRUE current label: the seam must
+  re-export what the app shows, and a wording change would need an owner
+  decision, never a refactor. The consumer absence-check followed
+  (`'Clear'` instead of `'Clear logs'`).
 - e2e: not re-run for this RED (suite + docs only; unchanged at `e08d2e5`,
   1/1).
 
