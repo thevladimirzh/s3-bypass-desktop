@@ -80,7 +80,7 @@ the DV-36/DV-37 pattern.
       closed, audit B-13); LogsView empty-state text pinned; the duplicated
       status-label maps (renderer vs tray) pinned equal; the dev-only
       "run inside Electron" IPC line treated per the RED note.
-- [ ] **M3-06** · developer · **M** · deps: M3-05 · `todo`
+- [x] **M3-06** · developer · **M** · deps: M3-05 · `done` (GREEN, 2026-10-08 — 308/308)
       GREEN for the surface pins (renderer proxy section, footer copy, quit
       dialog wiring, shared status-label source).
 

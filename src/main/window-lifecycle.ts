@@ -31,6 +31,7 @@
  * (system-proxy module, M1-21), not to this policy.
  */
 
+import { STATUS_LABELS } from '../shared/status-labels';
 import type { CoreState } from '../shared/status-machine';
 
 /** Window close verdict (US-05 AC-05.2 / FR-39): hide to tray vs. really close. */
@@ -108,17 +109,12 @@ export interface WindowLifecycle {
 }
 
 /**
- * FR-41 status text for the three visible states, verbatim ("never color-only",
- * NFR-5). `starting`/`stopping` are transient busy labels — A-14 leaves their
- * wording open, only "is non-empty text" is pinned (M1-22 DV-27(5)).
+ * FR-41 status text for the visible states, verbatim ("never color-only",
+ * NFR-5). M3-06 (TC-POL-03): the words live in `src/shared/status-labels.ts`
+ * — ONE source with the renderer's badge — re-exported here under this
+ * suite's historical name `STATUS_TEXT` (the pin compares both exports).
  */
-const STATUS_TEXT: Readonly<Record<CoreState, string>> = {
-  stopped: 'Stopped',
-  starting: 'Starting...',
-  running: 'Running',
-  stopping: 'Stopping...',
-  crashed: 'Core crashed',
-};
+export { STATUS_LABELS as STATUS_TEXT };
 
 /**
  * Pure state → tray menu model (AC-05.4 / AC-05.6): needs no window, no
@@ -136,7 +132,7 @@ export function buildTrayMenu(state: CoreState): TrayMenuModel {
   const canStart = state === 'stopped' || state === 'crashed';
   const canStop = state === 'running';
   return {
-    statusText: STATUS_TEXT[state],
+    statusText: STATUS_LABELS[state],
     items: [
       { id: 'open', label: 'Show window', enabled: true },
       { id: 'start', label: 'Start tunnel', enabled: canStart },

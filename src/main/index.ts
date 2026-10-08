@@ -759,7 +759,14 @@ const windowLifecycle = createWindowLifecycle({
     // (`starting`/`stopping` would orphan the child otherwise), so no
     // leftover child and no leftover T (data-flows §2.1 step 9). The tray
     // Stop action below keeps the graceful `handleStop()`.
-    await coreWiring.handleStopForce();
+    // M3-05 / audit B-13: the OperationResult is BIND-checked — a failed
+    // force-stop throws its documented triple so the policy records it as
+    // the first failure (it rethrows after `requestQuit` → surfaced below;
+    // awaited-and-dropped was the swallow the audit found).
+    const result = await coreWiring.handleStopForce();
+    if (!result.ok) {
+      throw result.error;
+    }
   },
   restoreProxy: async (): Promise<void> => {
     // FR-35 / AC-04.7: UNCONDITIONAL delegation — the module itself owns the
@@ -797,6 +804,25 @@ const windowLifecycle = createWindowLifecycle({
 });
 
 /**
+ * M3-05 / audit B-13 (AC-05.5 fail closed): the quit teardown's FIRST
+ * failure — the policy rethrows it AFTER `requestQuit`, and this dialog path
+ * is its surface (the sibling of `surfaceRestoreFailure`, same precedent).
+ * Only documented triples reach the user (`isAppError`): non-triple
+ * infrastructure failures (hung-step budget timeouts, S5-15) stay
+ * non-visual — errors.md §0 forbids invented wording (FR-48: nothing raw).
+ */
+async function surfaceQuitFailure(failure: unknown): Promise<void> {
+  if (!isAppError(failure)) return;
+  await dialog.showMessageBox({
+    type: 'warning',
+    title: APP_NAME,
+    message: failure.title,
+    detail: `${failure.cause}\n\n${failure.nextStep}`,
+    buttons: ['OK'],
+  });
+}
+
+/**
  * The single quit entry (FR-42 / AC-05.5): flips the quit marker — close
  * verdicts become 'close' from here on — and runs the ONE shared lifecycle
  * teardown (stop core → restore proxy → requestQuit), shared between the
@@ -805,10 +831,11 @@ const windowLifecycle = createWindowLifecycle({
  */
 function beginQuit(): void {
   quitting = true;
-  void windowLifecycle.handleBeforeQuit().catch(() => {
-    // Fail closed (AC-05.5): every step is attempted and `requestQuit` is
-    // LAST inside the policy — the rethrown first failure belongs to the
-    // caller to surface, never to a hung or half-finished exit.
+  void windowLifecycle.handleBeforeQuit().catch((failure: unknown) => {
+    // Fail closed (AC-05.5) + M3-05 audit B-13: every step was attempted
+    // and `requestQuit` ran LAST inside the policy — the rethrown first
+    // failure is shown here through the dialog path instead of swallowed.
+    void surfaceQuitFailure(failure);
   });
 }
 

@@ -190,6 +190,31 @@ results.)_
 - e2e: not re-run for this RED (suite-only + docs; e2e unchanged, 1/1 at
   `c0a2eb7`).
 
+### M3-06 GREEN (surface pins, 2026-10-08)
+
+- Chain: prettier `docs/ src/ tests/` clean, typecheck rc=0, eslint rc=0
+  (one GREEN fixup: `CoreState` alias in App.tsx became unused once the
+  shared label map supplied its own typing).
+- Implementation:
+  - `src/shared/status-labels.ts` (new): the ONE status-word map;
+    `App.tsx` re-exports it as `STATUS_LABELS`, `window-lifecycle.ts`
+    re-exports it as `STATUS_TEXT` (local duplicate deleted) — the
+    equality pin compares the two exports of the same object;
+  - footer: `S3 Bypass Desktop` (BRIEF §9 productName), scaffold note gone;
+  - AC-04.5: `readProxyState` now stores the full `ProxyState`; the
+    unsupported desktop renders the exact data-flows §3.3 sentence built
+    from `hint` (host/port, `DEFAULT_SOCKS_PORT` fallback) — supported
+    path unchanged;
+  - IPC line: the `(run inside Electron)` parenthetical renders only when
+    `window.s3Bypass` is absent (plain-browser/dev context);
+  - B-13: `stopCore` binds the `handleStopForce` result and throws the
+    documented triple on `!ok`; `beginQuit` routes the rethrown first
+    failure to the new `surfaceQuitFailure` (native warning dialog,
+    `isAppError` gate — non-triple infrastructure failures stay
+    non-visual per errors.md §0).
+- Result: **308 passed (308)** / 43 files — all 5 named REDs resolved.
+  e2e: 1 passed (1) (the Start/Stop exact-name contract untouched).
+
 ---
 
 ## 11. Deviations log (QA bookkeeping)

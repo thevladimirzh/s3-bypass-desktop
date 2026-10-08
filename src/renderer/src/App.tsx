@@ -1,31 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DEFAULT_SOCKS_PORT } from '../../shared/constants';
-import type { AppError, PingResult, ProfileSummary, StatusSnapshot } from '../../shared/ipc';
+import type {
+  AppError,
+  PingResult,
+  ProfileSummary,
+  ProxyHint,
+  ProxyState,
+  StatusSnapshot,
+} from '../../shared/ipc';
+import { STATUS_LABELS } from '../../shared/status-labels';
 import LogsView from './components/LogsView';
 
-/** The §2.3 lifecycle states — derived from the IPC payload (shared §4.2). */
-type CoreState = StatusSnapshot['state'];
-
 /**
- * FR-41 visible-state wording mirrored into the main window (FR-24 /
- * AC-03.1: a TEXT label, never color-only): `Stopped`/`Running`/
- * `Core crashed` verbatim, exactly as the tray shows them. The transient
- * `starting`/`stopping` states print busy text on the SAME badge (A-14;
- * wording open per DV-27(5), pinned only as "retires the previous label,
- * never blank" — the wording here mirrors the tray's statusText).
+ * FR-41 visible-state wording (FR-24 / AC-03.1: a TEXT label, never
+ * color-only): `Stopped`/`Running`/`Core crashed` verbatim, exactly as the
+ * tray shows them — M3-06 (TC-POL-03) moved the map to
+ * `src/shared/status-labels.ts` (ONE source with the tray's statusText) and
+ * re-exports it here so the pin imports the SAME map the badge renders.
  */
-const STATUS_LABELS: Record<CoreState, string> = {
-  stopped: 'Stopped',
-  starting: 'Starting...',
-  running: 'Running',
-  stopping: 'Stopping...',
-  crashed: 'Core crashed',
-};
+export { STATUS_LABELS };
 
 /** FR-12 / FR-30 exact user-visible hint wording, verbatim (AC-02.3 / AC-04.4). */
 const HINT_NO_PROFILE = 'Import a profile first';
 const HINT_PROXY_NOT_RUNNING = 'Start the tunnel first';
+
+/**
+ * AC-04.5 (data-flows §3.3, M3-06): the exact manual-proxy sentence built
+ * from main's `ProxyState.hint` — shown ONLY when `supported` is false (the
+ * hint is the unsupported-desktop answer, never per-start spam).
+ */
+function manualProxyHint(hint: ProxyHint | undefined): string {
+  const host = hint?.host ?? '127.0.0.1';
+  const port = hint?.port ?? DEFAULT_SOCKS_PORT;
+  return `Not supported on this desktop — set it manually: SOCKS proxy ${host}, port ${port}.`;
+}
 
 export default function App() {
   const [ping, setPing] = useState<PingResult | null>(null);
@@ -49,6 +58,10 @@ export default function App() {
   // answers ok (AC-04.6 — never optimistic), and every main-side change
   // (auto-on-start / stop-restore, AC-04.1/AC-04.7) is re-read back in.
   const [proxyEnabled, setProxyEnabled] = useState(false);
+  // AC-04.5 (M3-06): the FULL proxy:get snapshot — `supported` decides
+  // whether the manual-proxy hint renders (audit B-11: the renderer used to
+  // drop both `supported` and `hint` on the floor).
+  const [proxyState, setProxyState] = useState<ProxyState | null>(null);
   // While a toggle write is in flight its RESULT owns the flip — a
   // background re-read (push/focus) must not clobber the confirmed state
   // that is about to land.
@@ -61,7 +74,10 @@ export default function App() {
     if (proxyWritePending.current) return;
     window.s3Bypass
       ?.getProxy?.()
-      .then((snapshot) => setProxyEnabled(snapshot.active))
+      .then((snapshot) => {
+        setProxyEnabled(snapshot.active);
+        setProxyState(snapshot);
+      })
       .catch(() => {
         // FR-48: a bridge failure has nothing safe to render — state stays.
       });
@@ -220,7 +236,12 @@ export default function App() {
           </p>
         ) : (
           <p>
-            Core IPC: <strong>not connected</strong> (run inside Electron)
+            Core IPC: <strong>not connected</strong>
+            {/* M3-05/TC-POL-03: the parenthetical is DEV context only — a
+                missing preload bridge cannot happen inside packaged
+                Electron, so a packaged user whose ping failed never sees
+                the "run inside Electron" text. */}
+            {typeof window.s3Bypass === 'undefined' ? ' (run inside Electron)' : ''}
           </p>
         )}
       </section>
@@ -313,6 +334,12 @@ export default function App() {
           />{' '}
           Use system proxy
         </label>
+        {/* AC-04.5 (M3-06, audit B-11): the unsupported-desktop answer —
+            main's exact data-flows §3.3 sentence, rendered only when
+            `supported` is false (never on the supported path). */}
+        {proxyState !== null && !proxyState.supported && (
+          <p className="hint">{manualProxyHint(proxyState.hint)}</p>
+        )}
         {!running && <p className="hint">{HINT_PROXY_NOT_RUNNING}</p>}
       </section>
       <section className="status profile">
@@ -350,7 +377,7 @@ export default function App() {
       </section>
       {/* M1-19 (FR-45/FR-49): the logs view — main-redacted lines, copy/clear. */}
       <LogsView />
-      <footer>M0 scaffold — tunnel features land in M1.</footer>
+      <footer>S3 Bypass Desktop</footer>
     </main>
   );
 }
