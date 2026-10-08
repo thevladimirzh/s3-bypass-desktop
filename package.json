@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "verify:core-pin": "node scripts/verify-core-pin.mjs"
   },
   "dependencies": {
     "react": "^19.3.0",

@@ -32,14 +32,15 @@ pattern of DV-36/DV-37.
       Record the owner decisions above in `BRIEF.md` §9/§10 and
       `docs/plans/milestones.md` §M2 (deliverables, DoD #1 wording, R-1/R-2) —
       this commit. Spec-before-pin (house rule).
-- [ ] **M2-02** · qa · **S** · deps: M2-01 · `todo`
+- [x] **M2-02** · qa · **S** · deps: M2-01 · `done`
       Open `docs/qa/m2-test-plan.md` — scope: packaging config pins, core-pinning
       verification, real-binary integration, attributions, release CI; declare the
       M2 TC families + a deviations log in the M1-test-plan style.
+      Evidence: `28cef84` (plan opened, TC-PKG family + DV-38 declared).
 
 ### Phase B — Core pinning (risk R-1)
 
-- [ ] **M2-03** · devops · **M** · deps: M2-01 · `todo`
+- [x] **M2-03** · devops · **M** · deps: M2-01 · `done`
       Pin the core: resolve tag → commit SHA for the chosen
       `Fedarisha/Xray-core-fedarisha` release (available: `v26.9.9-1.0.1fed`,
       published 2026-09-26), download `Xray-linux-64.zip`, `Xray-macos-64.zip`,
@@ -47,6 +48,10 @@ pattern of DV-36/DV-37.
       SHA-256 per asset in `docs/analysis/core-pin.md` (BRIEF §9), and add
       `scripts/verify-core-pin.mjs` that passes on a good hash and fails loudly on
       a bad one. RED first (script behavior + pin-doc structure).
+      Evidence: RED `8465d3b` (TC-PKG-01..03, observed 3 failed | 215 passed) →
+      GREEN in this commit (`docs/analysis/core-pin.md` + verify script +
+      `verify:core-pin`; 218 passed | 0 failed; all 3 real assets `core pin OK`,
+      tampered file exit 1 MISMATCH; upstream `.dgst` cross-check matched).
 - [ ] **M2-04** · developer · **M** · deps: M2-03 · `todo`
       Bundle the pinned binary into the app (`extraResources`, per-platform path)
       and teach the supervisor to resolve it: packaged path > `CORE_BINARY_PATH`

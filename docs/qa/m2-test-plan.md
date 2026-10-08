@@ -91,6 +91,18 @@ the CLI cannot spawn), baseline **215 passed / 0 failed (215)** untouched (same
 `npx prettier --check` exit 0. Observed: `Tests 3 failed | 215 passed (218)`,
 `Test Files 1 failed | 31 passed (32)`, exit 1.
 
+**M2-03 core pinning — GREEN** (2026-10-08): artifacts per DV-39 —
+`docs/analysis/core-pin.md` (release `v26.9.9-1.0.1fed`, commit
+`036606649aae3ee36102b02e6437c7266bc2f2be`, three asset rows with SHA-256
+computed from the downloaded release assets and cross-checked against the
+upstream `.dgst` files — all three matched), `scripts/verify-core-pin.mjs`
+(exported `expectedShaForAsset` + CLI with the `--pin-doc` override) and the
+`verify:core-pin` npm script. Observed: `Tests 218 passed (218)`,
+`Test Files 32 passed (32)` — TC-PKG-01..03 GREEN; the baseline 215/0 is
+untouched (+3 = this batch's own RED). Live evidence: all three real assets →
+`core pin OK …`; a tampered file → exit 1 with `MISMATCH` + expected/actual
+digests. `npm run lint` + `npm run typecheck` + `npx prettier --check` exit 0.
+
 _(Further entries appended when a batch is written/observed, mirroring the M1 §13
 narrative style: counts, observed RED, baseline untouched, green results.)_
 
