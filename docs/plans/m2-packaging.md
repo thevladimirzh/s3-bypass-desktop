@@ -1,6 +1,6 @@
 # M2 — Packaging & pinned core: task breakdown
 
-Milestone: **M2** (BRIEF §8) · Owner: DevOps · Status: **in progress**
+Milestone: **M2** (BRIEF §8) · Owner: DevOps · Status: **done** (2026-10-08 — acceptance `docs/qa/acceptance-m2-13.md`: **GO**)
 Parent plan: `docs/plans/milestones.md`
 
 **Legend:** task ID · owner · size (S ≈ 0.5 d, M ≈ 0.5–1.5 d, L ≈ 2+ d) · deps · status
@@ -188,9 +188,18 @@ pattern of DV-36/DV-37.
       Fresh-machine install run (M2 DoD #2): install the packaged app → import →
       start → stop; this is also where the **Q9-waived M1 desktop manual rows**
       land (acceptance §8). Checklist: `docs/qa/m2-fresh-machine.md`.
-- [ ] **M2-13** · project-manager · **S** · deps: M2-12 · `todo`
+- [x] **M2-13** · project-manager · **S** · deps: M2-12 · `done`
       M2 acceptance report → flip M2 in `milestones.md` → handoff → M3; triage the
       leftovers (issue #5 S4-3 closes here or moves to M3 with an explicit note).
+      Evidence: `docs/qa/acceptance-m2-13.md` — **GO** (DoD #1..#5; DoD #1 under the
+      owner-recorded arm64-only waiver → issue **#27**). Flips ride this commit:
+      milestones M2 → DONE / M3 → READY (+ "Carried over from M2" note), this
+      board's status → done. Triage published (owner-approved texts): #27 created;
+      comment on #5 (→ M3 explicit note, S4-4 evidenced by M2-09); comments on
+      #20/#21/#22/#24 (pre-M3 fix series; sequence M2-13 → fix batches → M3).
+      Live re-verification: `npm test` 266/41 green, e2e 1 passed (1 file, 3.73 s),
+      CI run `37814689139` all 4 jobs success on `967b554` (e2e job green after a
+      GitHub-capacity rerun, acceptance §3).
 
 ---
 

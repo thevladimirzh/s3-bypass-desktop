@@ -8,14 +8,14 @@ Source of truth: `BRIEF.md` §8. Owner: Project Manager. All artifacts in Englis
 
 ## Current status (as of this writing)
 
-| Milestone                        | Status                                                                                                                                                                                                                                                             |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **M0 — Repo scaffold**           | **DONE** (2026-10-07) — scaffold + docs committed; CI green on ubuntu+macos (run `37534079151` and later); M0-19 security spot-check PASS (no S1/S2). Evidence: `docs/qa/m0-verification.md`, `docs/qa/security-m0-19.md`.                                         |
-| **M1 — MVP core loop**           | **DONE** (2026-10-08) — Phases A–I delivered; M1-27 acceptance NO-GO → **M1-27b** remediation closed (issues #14..#18 with evidence; #19 carries the out-of-M1 crash branch); M1-28 flip done, **handoff → devops (M2)**. Evidence: `docs/qa/acceptance-m1-27.md`. |
-| **M2 — Packaging & pinned core** | **IN PROGRESS** — board `docs/plans/m2-packaging.md` opened 2026-10-08 (owner decisions recorded first: unsigned macOS, AppImage + `.deb` + `.rpm`). Unblocked by the M1 handoff; the Q9-waived desktop checks join the fresh-machine DoD.                         |
-| **M3 — Polish + beta**           | NOT STARTED — blocked on M2.                                                                                                                                                                                                                                       |
+| Milestone                        | Status                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M0 — Repo scaffold**           | **DONE** (2026-10-07) — scaffold + docs committed; CI green on ubuntu+macos (run `37534079151` and later); M0-19 security spot-check PASS (no S1/S2). Evidence: `docs/qa/m0-verification.md`, `docs/qa/security-m0-19.md`.                                                                                                                                                                                                                   |
+| **M1 — MVP core loop**           | **DONE** (2026-10-08) — Phases A–I delivered; M1-27 acceptance NO-GO → **M1-27b** remediation closed (issues #14..#18 with evidence; #19 carries the out-of-M1 crash branch); M1-28 flip done, **handoff → devops (M2)**. Evidence: `docs/qa/acceptance-m1-27.md`.                                                                                                                                                                           |
+| **M2 — Packaging & pinned core** | **DONE** (2026-10-08) — 13/13 board tasks done; DoD #1 tag runs all legs green + manifest SHA-256 verified (test tag observed) **under the owner-recorded arm64-only waiver → issue #27**, DoD #2 fresh-machine checklist 28/28 `observed-GREEN` → **PASS**, DoD #3 `security-m2-09.md` PASS 0 critical/0 high/0 medium, DoD #4 MPL-2.0 attributions packed in every artifact, DoD #5 handoff → M3. Evidence: `docs/qa/acceptance-m2-13.md`. |
+| **M3 — Polish + beta**           | **READY** (unblocked 2026-10-08, M2 handoff) — carries the pre-M3 fix batches #20/#21/#22 + #24, issue #5's S4-3/S4-6 re-verify note, and the darwin-x64 dmg leg (#27); see "Carried over from M2" in the M3 section.                                                                                                                                                                                                                        |
 
-Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative checklist; a milestone flips to `done` only when its Definition of Done below is fully met — stale `done` is a bug. M0 flipped 2026-10-07: DoD 1–6 evidenced in `docs/qa/m0-verification.md` and `docs/qa/security-m0-19.md`. M1 flipped 2026-10-08: DoD 2 (strict TDD, 215 RED/GREEN-pinned tests), DoD 3 (security gate MET, no high/critical open) and DoD 4 (CI green both OS + smoke E2E ×3 green) evidenced in `docs/qa/acceptance-m1-27.md` + issue closures #14..#18; DoD 1's desktop manual demonstration is covered for the flip by the written Q9 waiver (basis = CI both-OS + suite + E2E M1-24) with the manual rows moving to the M2 fresh-machine DoD.
+Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative checklist; a milestone flips to `done` only when its Definition of Done below is fully met — stale `done` is a bug. M0 flipped 2026-10-07: DoD 1–6 evidenced in `docs/qa/m0-verification.md` and `docs/qa/security-m0-19.md`. M1 flipped 2026-10-08: DoD 2 (strict TDD, 215 RED/GREEN-pinned tests), DoD 3 (security gate MET, no high/critical open) and DoD 4 (CI green both OS + smoke E2E ×3 green) evidenced in `docs/qa/acceptance-m1-27.md` + issue closures #14..#18; DoD 1's desktop manual demonstration is covered for the flip by the written Q9 waiver (basis = CI both-OS + suite + E2E M1-24) with the manual rows moving to the M2 fresh-machine DoD. M2 flipped 2026-10-08: DoD #1 evidenced by the observed test-tag runs under the owner-recorded arm64-only waiver (issue #27, `docs/qa/acceptance-m2-13.md` §3), DoD #2 = `m2-fresh-machine.md` 28/28 `observed-GREEN` PASS, DoD #3 = `security-m2-09.md` PASS 0/0/0, DoD #4 = packed `resources/licenses/`; fix batches #20/#21/#22/#24 and #27 ride the M3 start.
 
 ---
 
@@ -122,6 +122,17 @@ Honesty note: the board in `docs/plans/m0-scaffold.md` is the authoritative chec
 - User documentation: install, first profile, troubleshooting, manual system-proxy hints.
 - Beta distribution to a small cohort; feedback triage into backlog (BRIEF §3 stays out of scope).
 - i18n groundwork (English first; Russian later — backlog).
+
+### Carried over from M2 (recorded at the M2-13 acceptance, owner decisions 2026-10-08)
+
+- **Issue #5** (S4-3 broadcast targeting, S4-6 handler throttling): S4-4 is evidenced
+  closed by M2-09 (11/11 payload guards); S4-3/S4-6 stay conditional — single window
+  today, handlers cheap — and must be re-verified when multi-window / expensive-handler
+  features land.
+- **Pre-M3 fix batches:** issues **#20, #21, #22, #24** (owner-approved sequence:
+  M2-13 → fix batches → M3).
+- **darwin-x64 (Intel) dmg leg** — issue **#27** (M2 DoD #1 waived to arm64-only,
+  owner 2026-10-08; `docs/qa/acceptance-m2-13.md` §3).
 
 ### Definition of Done
 
