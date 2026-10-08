@@ -315,6 +315,23 @@ hint.* action.* tray.* logs.* app.*`) + `t(key, params?)` with
   every pre-existing wording pin green without a single edit (the M3-08
   contract). e2e: 1 passed (1) (the Start/Stop exact-name contract byte-
   identical).
+
+### M3-10 RED (darwin-x64 leg, issue #27, 2026-10-09)
+
+- Chain: prettier `docs/ src/ tests/` clean, typecheck rc=0, eslint rc=0
+  (one RED fixup: an apostrophe in the failure message — `waiver'd` —
+  broke the single-quoted string; reworded to `waived` before observation).
+- Suite: **1 failed | 315 passed (316)** — baseline 315 → +1 test
+  (`releaseWorkflow.macBuildsBothArchDmgs`, TC-PKG-21), 1 file. The named
+  RED: the mac matrix row still carries `dist_args: ''` (arm64-only — the
+  M2 waiver) and the build job has no two-dmg assertion. The
+  `core-bin/darwin-${arch}` per-arch core row and the `release/*.dmg`
+  glob in the mac row already hold (observed GREEN in the RED batch —
+  the Intel dmg would stage the Intel core the moment it builds).
+- m2-test-plan §6: TC-PKG-21 row added (the #27 pins continue the PKG
+  family there per DV-60 precedent; this §10 carries the M3 execution
+  narrative).
+- e2e: not re-run (suite + docs only; unchanged at `25994d3`, 1/1).
 - e2e: not re-run for this RED (suite + docs only; unchanged at `e08d2e5`,
   1/1).
 

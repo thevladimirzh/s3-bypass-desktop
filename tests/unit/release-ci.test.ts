@@ -374,3 +374,72 @@ describe('TC-PKG-15 — .deb on ubuntu, .rpm in a pinned Fedora container (M2-07
     ).toContain('--publish never');
   });
 });
+
+/**
+ * TC-PKG-21 (M3-10, issue #27) — the darwin-x64 (Intel) dmg leg.
+ *
+ * M2 DoD #1 asked for `darwin-x64`, `darwin-arm64` and `linux-x64`
+ * artifacts from one tag; the owner waived M2 to arm64-only (recorded in
+ * `docs/qa/acceptance-m2-13.md` §3) and issue #27 carries the follow-up.
+ * The board decision (m3-polish.md Phase F): one mac matrix leg builds
+ * BOTH arches (`--arm64 --x64`), electron-builder appends `${arch}` to the
+ * dmg name so `release/*.dmg` catches both, and a workflow step FAILS the
+ * leg if fewer than two dmgs were staged — the empirical confirmation is
+ * the validation-tag run (M2-07 pattern), the pins below guard the config.
+ *
+ * Note the observed-GREEN row: `electron-builder.yml` already resolves
+ * `core-bin/darwin-${arch}` for mac extraResources — the Intel dmg must
+ * carry the Intel core, and that wiring may never be hardcoded to arm64.
+ */
+describe('TC-PKG-21 — darwin-x64 (Intel) dmg leg lands (issue #27, M3-10)', () => {
+  /** The matrix row for one OS: `- os: <os>` up to the next row. */
+  function macMatrixRow(build: string): string {
+    const start = build.indexOf('- os: macos-latest');
+    expect(
+      start,
+      'issue #27 / M3 batch F: the release matrix must keep its macos-latest row',
+    ).toBeGreaterThanOrEqual(0);
+    const rest = build.slice(start + '- os: macos-latest'.length);
+    const next = rest.indexOf('- os: ');
+    return next === -1 ? rest : rest.slice(0, next);
+  }
+
+  it('releaseWorkflow.macBuildsBothArchDmgs', () => {
+    const yml = repoFile('.github/workflows/release.yml');
+    const build = jobBlock(yml, 'build').join('\n');
+    const mac = macMatrixRow(build);
+
+    expect(
+      mac,
+      'issue #27/M3: the mac leg must build BOTH arches — `--arm64` (the M2 ' +
+        'waived default, owner machines) AND `--x64` (Intel users had no ' +
+        'installable artifact at all)',
+    ).toContain('--arm64');
+    expect(mac, 'issue #27/M3 batch F: the Intel arch flag on the mac leg').toContain('--x64');
+    expect(
+      mac,
+      'issue #27: one upload carries both dmgs — the mac row keeps the ' +
+        'release/*.dmg glob (electron-builder suffixes the arch into the name)',
+    ).toContain('release/*.dmg');
+
+    expect(
+      build,
+      'issue #27: the mac leg must FAIL when fewer than two arch dmgs were ' +
+        'staged — `if-no-files-found: error` alone cannot see a silently ' +
+        'skipped arch (one matching dmg still uploads fine)',
+    ).toContain('test $(ls release/*.dmg | wc -l) -ge 2');
+    expect(
+      build,
+      'issue #27: the two-dmg assertion is mac-only — the ubuntu leg ships ' +
+        'no dmgs and must not run it',
+    ).toContain("if: runner.os == 'macOS'");
+
+    const builder = repoFile('electron-builder.yml');
+    expect(
+      builder,
+      'issue #27: the Intel dmg must stage the Intel core — mac ' +
+        'extraResources resolves core-bin/darwin-${arch}, never a hardcoded ' +
+        'darwin-arm64 (observed GREEN pin: keep it that way)',
+    ).toContain('core-bin/darwin-${arch}');
+  });
+});

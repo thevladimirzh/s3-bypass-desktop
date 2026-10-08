@@ -77,18 +77,19 @@ discipline as `m1-test-plan.md` §14).
 
 ## 6. Release CI & gates (M2-07 / M2-08)
 
-| TC ID     | Test title                                    | AC / criterion                                           | Layer           | Fixture                       | Status                                  |
-| --------- | --------------------------------------------- | -------------------------------------------------------- | --------------- | ----------------------------- | --------------------------------------- |
-| TC-PKG-11 | `releaseWorkflow.tagMatrixBuildsAndVerifies`  | M2-07; DoD #1 (verify at build)                          | unit (raw-text) | .github/workflows/release.yml | RED-written (M2-07; **new**, DV-43)     |
-| TC-PKG-12 | `ciWorkflow.coverageJobLands`                 | M2-07; G-05 (coverage ≥80 in CI)                         | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-07; **new**, DV-43)     |
-| TC-PKG-13 | `ciWorkflow.e2eJobPerProposal`                | M2-07; e2e-ci-proposal rollout #1                        | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-07; **new**, DV-43)     |
-| TC-PKG-14 | `releaseManifest.writeVerifyAndTamper`        | M2-07; DoD #1 (manifest is verified)                     | unit (CLI, tmp) | scripts/release-manifest.mjs  | RED-written (M2-07; **new**, DV-43)     |
-| TC-PKG-15 | `releaseWorkflow.debOnUbuntuRpmOnFedora`      | M2-07 follow-up; distro split (owner request 2026-10-08) | unit (raw-text) | .github/workflows/release.yml | RED-written (follow-up; **new**, DV-47) |
-| TC-PKG-16 | `ci.auditLegsBlockProdAndInformHigh`          | M2-08; issue #2 optional CI leg; S5-13 prod gate         | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-08; **new**)            |
-| TC-PKG-17 | `auditEvidence.acceptedRiskNoteSatisfiesGate` | M2-08; issue #2 evidence gate (M0-19 S4-5)               | unit (raw-text) | docs/qa/security-m2-audit.md  | RED-written (M2-08; **new**)            |
-| TC-PKG-18 | `coreStaging.cleanTargetAndManifestRoundTrip` | issue #20 (M2-09 S6-1); pre-M3 fix series; fix a         | unit (tmp)      | scripts/core-staging.mjs      | RED-written (issue #20; **new**, DV-60) |
-| TC-PKG-19 | `afterPackVerify.packedCoreGateFailClosed`    | issue #20 fix b; local `dist` gate (DoD #1 honesty)      | unit (tmp)      | scripts/after-pack-verify.mjs | RED-written (issue #20; **new**, DV-60) |
-| TC-PKG-20 | `builderConfig.afterPackGateWired`            | issue #20; the pack gate is wired fail-closed            | unit (raw-text) | electron-builder.yml          | RED-written (issue #20; **new**, DV-60) |
+| TC ID     | Test title                                    | AC / criterion                                                                      | Layer           | Fixture                       | Status                                       |
+| --------- | --------------------------------------------- | ----------------------------------------------------------------------------------- | --------------- | ----------------------------- | -------------------------------------------- |
+| TC-PKG-11 | `releaseWorkflow.tagMatrixBuildsAndVerifies`  | M2-07; DoD #1 (verify at build)                                                     | unit (raw-text) | .github/workflows/release.yml | RED-written (M2-07; **new**, DV-43)          |
+| TC-PKG-12 | `ciWorkflow.coverageJobLands`                 | M2-07; G-05 (coverage ≥80 in CI)                                                    | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-07; **new**, DV-43)          |
+| TC-PKG-13 | `ciWorkflow.e2eJobPerProposal`                | M2-07; e2e-ci-proposal rollout #1                                                   | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-07; **new**, DV-43)          |
+| TC-PKG-14 | `releaseManifest.writeVerifyAndTamper`        | M2-07; DoD #1 (manifest is verified)                                                | unit (CLI, tmp) | scripts/release-manifest.mjs  | RED-written (M2-07; **new**, DV-43)          |
+| TC-PKG-15 | `releaseWorkflow.debOnUbuntuRpmOnFedora`      | M2-07 follow-up; distro split (owner request 2026-10-08)                            | unit (raw-text) | .github/workflows/release.yml | RED-written (follow-up; **new**, DV-47)      |
+| TC-PKG-16 | `ci.auditLegsBlockProdAndInformHigh`          | M2-08; issue #2 optional CI leg; S5-13 prod gate                                    | unit (raw-text) | .github/workflows/ci.yml      | RED-written (M2-08; **new**)                 |
+| TC-PKG-17 | `auditEvidence.acceptedRiskNoteSatisfiesGate` | M2-08; issue #2 evidence gate (M0-19 S4-5)                                          | unit (raw-text) | docs/qa/security-m2-audit.md  | RED-written (M2-08; **new**)                 |
+| TC-PKG-18 | `coreStaging.cleanTargetAndManifestRoundTrip` | issue #20 (M2-09 S6-1); pre-M3 fix series; fix a                                    | unit (tmp)      | scripts/core-staging.mjs      | RED-written (issue #20; **new**, DV-60)      |
+| TC-PKG-19 | `afterPackVerify.packedCoreGateFailClosed`    | issue #20 fix b; local `dist` gate (DoD #1 honesty)                                 | unit (tmp)      | scripts/after-pack-verify.mjs | RED-written (issue #20; **new**, DV-60)      |
+| TC-PKG-20 | `builderConfig.afterPackGateWired`            | issue #20; the pack gate is wired fail-closed                                       | unit (raw-text) | electron-builder.yml          | RED-written (issue #20; **new**, DV-60)      |
+| TC-PKG-21 | `releaseWorkflow.macBuildsBothArchDmgs`       | issue #27 (M3-10); mac leg builds arm64 **and** x64 dmgs, ≥ 2 staged, per-arch core | unit (raw-text) | .github/workflows/release.yml | RED-written (issue #27; **new**, M3 batch F) |
 
 ## 7. Real-binary integration (M2-10)
 
