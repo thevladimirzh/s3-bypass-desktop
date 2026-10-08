@@ -213,14 +213,29 @@ export function createWindowLifecycle(deps: WindowLifecycleDeps): WindowLifecycl
     // directly to the same supervisor/proxy functions `core:*` uses — the
     // quit item goes through the SAME teardown as before-quit (no shortcut).
     handleMenuAction: async (action: TrayMenuAction): Promise<void> => {
+      // M2-11 / issue #19 (tray freshness advisory): `start`/`stop` are
+      // re-validated against the LIVE state through the SAME pure
+      // `buildTrayMenu` model the menu template was built from — a stale
+      // template click (a status push racing the click) becomes a silent
+      // no-op instead of an illegal transition attempt (one source of
+      // truth, never a second legality copy). `open`/`quit` are
+      // state-independent (FR-40/FR-42) and never consult the state.
+      const canDispatch = (wanted: 'start' | 'stop'): boolean =>
+        buildTrayMenu(deps.getLiveState()).items.some((item) => item.id === wanted && item.enabled);
       switch (action) {
         case 'open':
           deps.showWindow();
           return;
         case 'start':
+          if (!canDispatch('start')) {
+            return;
+          }
           await deps.startTunnel();
           return;
         case 'stop':
+          if (!canDispatch('stop')) {
+            return;
+          }
           await deps.stopTunnel();
           return;
         case 'quit':

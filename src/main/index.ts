@@ -537,6 +537,17 @@ const coreWiring = createCoreWiring({
   },
   broadcast: (snapshot): void => {
     broadcastStatus(snapshot);
+    // M2-11 / issue #19 (FR-35 crash arm, errors.md §6 E-CORE-* row): a crash
+    // while the toggle is ON reverts the system proxy; a FAILED revert raises
+    // the persistent E-PLAT-003 warning — `restoreAppliedProxy` owns both the
+    // snapshot replay and the surfacing. `!quitting` keeps the exit path
+    // single-shot (the teardown's own restore arm owns the quit — one
+    // replay, one warning); `proxySnapshot !== null` is the module's own
+    // idempotency: nothing applied → no-op, and a second push after a
+    // successful revert sees `null`.
+    if (snapshot.state === 'crashed' && !quitting && proxySnapshot !== null) {
+      void restoreAppliedProxy();
+    }
   },
 });
 
@@ -632,18 +643,40 @@ async function autoApplySystemProxy(): Promise<void> {
 }
 
 /**
- * M1-27b (AC-04.7): revert the applied system proxy after a graceful stop —
- * UNCONDITIONAL delegation (the module owns the `snapshot === null` no-op,
- * the same rule as the quit teardown below) and the stored snapshot is
- * cleared only on success: an E-PLAT-003 refusal keeps `proxy:get` reporting
- * the TRUTH (`active:true` — still applied), never a silent leftover; the
- * renderer's `proxy:set` path surfaces that triple inline.
+ * M2-11 / issue #19 (FR-35 fail-closed): surface a FAILED system-proxy
+ * revert as the persistent E-PLAT-003 warning — the same plain-language
+ * dialog precedent `autoApplySystemProxy` applies to a failed apply (A-14:
+ * the wording is errors.md's own; the triple travels title/message/detail).
+ * EVERY restore arm routes through this — graceful stop, quit teardown and
+ * the crash hook — never a silent leftover.
+ *
+ * @param error the module's plain-language triple (E-PLAT-003)
+ */
+async function surfaceRestoreFailure(error: AppError): Promise<void> {
+  await dialog.showMessageBox({
+    title: error.title,
+    message: error.cause,
+    detail: error.nextStep,
+  });
+}
+
+/**
+ * M1-27b (AC-04.7) + M2-11 (FR-35 on ALL arms): revert the applied system
+ * proxy — UNCONDITIONAL delegation (the module owns the `snapshot === null`
+ * no-op, the same rule as the quit teardown below) and the stored snapshot
+ * is cleared only on success: an E-PLAT-003 refusal keeps `proxy:get`
+ * reporting the TRUTH (`active:true` — still applied) AND raises the
+ * persistent warning (issue #19: the stop, quit and crash arms must never
+ * swallow it). The renderer's `proxy:set` path stays separate — it surfaces
+ * the triple inline on its own result, no dialog.
  */
 async function restoreAppliedProxy(): Promise<void> {
   const restored = await restoreSystemProxy(systemProxyContext, proxySnapshot);
   if (restored.ok) {
     proxySnapshot = null;
+    return;
   }
+  await surfaceRestoreFailure(restored.error);
 }
 
 /**
@@ -710,7 +743,16 @@ const windowLifecycle = createWindowLifecycle({
   restoreProxy: async (): Promise<void> => {
     // FR-35 / AC-04.7: UNCONDITIONAL delegation — the module itself owns the
     // `snapshot === null` idempotent no-op, never a caller-side guard.
-    await restoreSystemProxy(systemProxyContext, proxySnapshot);
+    // M2-11 / issue #19 item 1: a FAILED revert raises the persistent
+    // E-PLAT-003 warning BEFORE `requestQuit` (the pre-exit dialog) —
+    // beginQuit must not swallow it silently. The straight-to-hook shape is
+    // intentional: the structural pin TC-04-15 keeps THIS dep delegating to
+    // the system-proxy restore hook itself (the stop route owns
+    // `restoreAppliedProxy`, the quit route owns the pre-exit surfacing).
+    const restored = await restoreSystemProxy(systemProxyContext, proxySnapshot);
+    if (!restored.ok) {
+      await surfaceRestoreFailure(restored.error);
+    }
   },
   showWindow: showMainWindow,
   startTunnel: async (): Promise<void> => {
