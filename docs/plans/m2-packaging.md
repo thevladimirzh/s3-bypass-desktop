@@ -156,10 +156,22 @@ pattern of DV-36/DV-37.
       `127.0.0.1:10808`, so the suite runs in CI or a VPN-off window (the Q9
       pattern); capture the **authoritative coverage number** in the same window
       (G-05).
-- [ ] **M2-11** · developer · **M** · deps: M2-04 · `todo`
+- [x] **M2-11** · developer · **M** · deps: M2-04 · `done`
       Issue #19 (filed from M1-27b D-10): crash-path surfacing — quit-time
       `E-PLAT-003` persistence (FR-35), the `errors.md` §6 crash branch, and the
       tray freshness advisory. RED first against its own acceptance checklist.
+      Evidence: RED `b3e3d14` → GREEN `7fc0588` (TDD, separate commits) —
+      6 new tests: TC-04-20..23 (the quit/crash/stop restore-FAILURE arms
+      surface the persistent E-PLAT-003 dialog — quit BEFORE `requestQuit`,
+      proven by the `messageBox`/`quit` event order; crash reverts + clears
+      the snapshot on success; stop warns while `proxy:get` stays truthful)
+      and TC-05-24/25 (stale tray start/stop click = silent no-op,
+      re-validated through the same pure `buildTrayMenu` model).
+      Observed RED `6 failed | 236 passed (242)` → GREEN `242 passed (242)`,
+      chain 0. `data-flows.md` §5 quit note now states the implemented
+      pre-exit surfacing (D-10(d) pin flipped WITH it, DV-36 rule);
+      m2-test-plan §8/§10/DV-51. Issue #19 stays OPEN pending owner — its
+      acceptance checklist is fully satisfied (closure text via user).
 - [ ] **M2-12** · project-manager · **M** · deps: M2-07, M2-10 · `todo`
       Fresh-machine install run (M2 DoD #2): install the packaged app → import →
       start → stop; this is also where the **Q9-waived M1 desktop manual rows**

@@ -20,8 +20,11 @@
  *         records the flip as one spec amendment);
  *   D-10  S5-16 honesty markers: (a) E-IO-007 unreachable, (b) E-STOR-004
  *         unreachable, (c) E-CORE-004..007 classification pending, (d)
- *         quit-time surfacing not implemented, (f) the real log collector
- *         is named. Item (e) is D-02 — fixed by the M1-27b code commit.
+ *         quit-time surfacing — the M1 "not implemented" marker was
+ *         FLIPPED by M2-11 (issue #19): the pin now states the
+ *         implemented pre-exit surfacing, never a persistence claim,
+ *         (f) the real log collector is named. Item (e) is D-02 — fixed
+ *         by the M1-27b code commit.
  *
  * Contract: DOC-ONLY batch — no `src/**` behavior changes here; D-08's
  * half touches test titles only. The pins scan RAW file text, so any doc
@@ -211,19 +214,20 @@ describe('D-10 (S5-16 c) — E-CORE classification marked pending in data-flows 
   });
 });
 
-describe('D-10 (S5-16 d) — quit-time surfacing stated honestly (issue #17)', () => {
+describe('D-10 (S5-16 d) — quit-time surfacing stated honestly (issue #17; implemented by M2-11)', () => {
   it('docs.dataFlows.quitOrdering.noUnimplementedPersistenceClaim', () => {
     expect(
       DATA_FLOWS,
-      'D-10(d): the quit-ordering note still promises E-PLAT-003 "shown before exit / ' +
-        'persisted as lastError for next launch" — beginQuit swallows teardown ' +
-        'failures; the doc must state the gap (S5-16(d))',
+      'D-10(d): the quit-ordering note must never claim E-PLAT-003 is "persisted as ' +
+        '`lastError` for next launch" — M2-11 implemented the PRE-EXIT DIALOG arm ' +
+        '(the acceptance alternative), not persistence',
     ).not.toContain('persisted as `lastError` for next launch');
     expect(
       DATA_FLOWS,
-      'D-10(d): the quit-ordering note must state that quit-time surfacing is not ' +
-        'implemented in M1 (the known M2 gap)',
-    ).toContain('not implemented in M1');
+      'D-10(d): since M2-11 (issue #19) the quit-ordering note must state the ' +
+        'IMPLEMENTED quit-time surfacing (the pre-exit E-PLAT-003 warning) — the ' +
+        'M1-era gap marker ("not implemented in M1") must not survive the fix',
+    ).toContain('M2-11 (issue #19)');
   });
 });
 

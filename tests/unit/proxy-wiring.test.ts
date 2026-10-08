@@ -80,13 +80,14 @@
  *    without it `isSupportedPlatform('linux', undefined)` can never answer
  *    supported), plus the structural `XDG_CURRENT_DESKTOP` read in index.ts.
  *
- * Out of scope (tracked, never silently dropped): the CRASH arm of FR-35 /
- * errors.md §6 ("proxy reverted on E-CORE-*") — a PRE-EXISTING gap: nothing
- * in src/main observes a live child's exit (no seam exists to hook), so it
- * is filed as a follow-up GitHub issue alongside the E-PLAT-003 native
- * surfacing question. The QUIT arm stays pinned by TC-04-15 (M1-23a) — its
- * `restoreProxy` dep reads the same snapshot variable, now LIVE instead of
- * `const null`.
+ * Out of scope (tracked, never silently dropped): nothing from FR-35's
+ * three restore arms anymore — the CRASH arm of FR-35 / errors.md §6
+ * ("proxy reverted on E-CORE-*") was built by M2-11 (issue #19) on the
+ * broadcast transition seam: `onStateChange` from this harness IS the
+ * production exit path, and TC-04-21/22 pin revert + warning behaviorally.
+ * The QUIT arm stays pinned by TC-04-15 (M1-23a — its `restoreProxy` dep
+ * reads the same snapshot variable, straight to the restore hook) and is
+ * now behaviorally pinned too by TC-04-20 (pre-exit E-PLAT-003 surfacing).
  *
  * RED status: ASSERTION/absence RED — the first expectation of every case
  * fails on the baseline (placeholder handlers, zero `setSystemProxy(` call
