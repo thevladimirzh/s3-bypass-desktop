@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    M3-07 (owner decision 2026-10-08): the app icon SOURCE, generated in-repo.
+    Rasterized by scripts/build-icon.mjs (npm run build:icon) into
+    assets/icon.icns (darwin, iconutil) and assets/icon.png (linux).
+    Minimal by design: a deep-blue rounded square, a ring (the local
+    endpoint) and an arrow passing straight through (the bypass tunnel).
+    Pure shapes only — no text, so every rasterizer renders it identically.
+  -->
+  <rect width="1024" height="1024" rx="192" fill="#123a5c" />
+  <circle cx="512" cy="512" r="248" fill="none" stroke="#e8f1f8" stroke-width="64" />
+  <path
+    d="M192 512 H768"
+    fill="none"
+    stroke="#e8f1f8"
+    stroke-width="72"
+    stroke-linecap="round"
+  />
+  <path
+    d="M664 400 L792 512 L664 624"
+    fill="none"
+    stroke="#7fd4c1"
+    stroke-width="72"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

@@ -20,6 +20,7 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts",
     "dist": "electron-builder",
+    "build:icon": "node scripts/build-icon.mjs",
     "verify:core-pin": "node scripts/verify-core-pin.mjs",
     "prepare:core": "node scripts/prepare-core.mjs",
     "release:manifest": "node scripts/release-manifest.mjs"

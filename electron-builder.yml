@@ -35,6 +35,9 @@ mac:
   # Owner decision 2026-10-08 (BRIEF §10): no Apple Developer account —
   # declare the build unsigned instead of configuring a signing identity.
   identity: null
+  # M3-07 (TC-POL-04): generated in-repo from assets/app-icon.svg by
+  # `npm run build:icon` (scripts/build-icon.mjs, iconutil toolchain).
+  icon: assets/icon.icns
   target:
     - dmg
   extraResources:
@@ -42,6 +45,9 @@ mac:
       to: core/darwin
 linux:
   category: Network
+  # M3-07 (TC-POL-04): generated in-repo from assets/app-icon.svg by
+  # `npm run build:icon` (1024 px, >= 256 px per BRIEF §9).
+  icon: assets/icon.png
   target:
     - AppImage
     - deb

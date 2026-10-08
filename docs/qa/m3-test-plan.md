@@ -240,6 +240,21 @@ results.)_
   size, squareness), `build:icon` script wiring.
 - e2e: not re-run (suite + docs only; unchanged at `a2dcd21`, 1/1).
 
+### M3-07 GREEN (app icon, 2026-10-08)
+
+- Chain: prettier `docs/ src/ tests/ scripts/ *.yml *.json` clean, typecheck
+  rc=0, eslint rc=0 (one GREEN fixup: unused `writeFileSync` import in the
+  generator — `sips` writes the files, not the script).
+- Implementation: `assets/app-icon.svg` (pure-shapes source, 1024 intrinsic)
+  - `scripts/build-icon.mjs` (`npm run build:icon`: sips rasterize → master
+    PNG → linux artifact; `.iconset` 16..512 + @2x → `iconutil -c icns` →
+    darwin artifact; fails loudly when a stock tool is missing, never emits
+    placeholders) + committed artifacts `assets/icon.icns` (170 KB) and
+    `assets/icon.png` (58 KB, 1024×1024 RGBA) + `electron-builder.yml`
+    `mac.icon`/`linux.icon` + the `build:icon` package script.
+- Result: **312 passed (312)** / 43 files — all 4 named REDs resolved.
+  e2e: 1 passed (1).
+
 ---
 
 ## 11. Deviations log (QA bookkeeping)

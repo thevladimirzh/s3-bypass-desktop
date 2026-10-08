@@ -86,7 +86,7 @@ the DV-36/DV-37 pattern.
 
 ### Phase C — App icon + naming (BRIEF §9 defaults)
 
-- [ ] **M3-07** · qa+developer · **S** · deps: — · `todo`
+- [x] **M3-07** · qa+developer · **S** · deps: — · `done` (RED `6f16e68` + GREEN, 2026-10-08 — 312/312, TC-POL-04)
       Icon: RED config pin first (builder config must declare an icon produced
       from `assets/app-icon.svg`; the `productName` pin stays exactly
       `S3 Bypass Desktop`), GREEN = the SVG source + `scripts/build-icon.mjs`
