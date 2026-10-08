@@ -106,6 +106,21 @@ errors.md §0 (only documented triples reach the user).
 
 ---
 
+## 4. App icon + naming (M3-07 RED / GREEN) — TC-POL-04
+
+| Pin                                                               | What                                                                                                                                                                                      | Suite                    | Status                |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------------------- |
+| `builderConfig.iconWiredToGeneratedArtifactsAndProductNamePinned` | `mac:` declares `icon: assets/icon.icns`, `linux:` declares `icon: assets/icon.png`, `productName: S3 Bypass Desktop` stays exact (BRIEF §9)                                              | `builder-config.test.ts` | RED-written           |
+| `appIcon.sourceGeneratorAndArtifactsShipInRepo`                   | ABSENCE RED: `assets/app-icon.svg` + `scripts/build-icon.mjs` + generated `assets/icon.icns`/`assets/icon.png` exist; the generator reads the SVG, writes both artifacts, uses `iconutil` | `builder-config.test.ts` | RED-written (absence) |
+| `appIcon.artifactsAreRealIcnsAndPng`                              | magic bytes (`icns`/`PNG`), ≥ 1000 B container, PNG ≥ 256 px and square — placeholders cannot satisfy the config pins vacuously                                                           | `builder-config.test.ts` | RED-written (absence) |
+| `appIcon.generatorWiredIntoPackageScripts`                        | `npm run build:icon` regenerates the artifacts (SVG = source of truth)                                                                                                                    | `builder-config.test.ts` | RED-written (absence) |
+
+Owner decision (recorded on the board 2026-10-08): the icon is generated in-repo —
+SVG source + build script → icns/png, no owner artwork; generated artifacts are
+committed so packaging runs without an extra generation step.
+
+---
+
 ## 10. Execution log (per batch)
 
 _Appended when a batch is written/observed — RED entry first, then GREEN, mirroring
@@ -214,6 +229,16 @@ results.)_
     non-visual per errors.md §0).
 - Result: **308 passed (308)** / 43 files — all 5 named REDs resolved.
   e2e: 1 passed (1) (the Start/Stop exact-name contract untouched).
+
+### M3-07 RED (app icon, 2026-10-08)
+
+- Chain: prettier `docs/ src/ tests/` clean, typecheck rc=0, eslint rc=0.
+- Suite: **4 failed | 308 passed (312)** — baseline 308 → +4 tests (the
+  whole TC-POL-04 describe), 1 file. The 4 observed REDs are the named
+  absence pins: config wiring (mac/linux `icon:` + `productName` pin),
+  source/generator/artifacts existence, artifact reality (magic bytes,
+  size, squareness), `build:icon` script wiring.
+- e2e: not re-run (suite + docs only; unchanged at `a2dcd21`, 1/1).
 
 ---
 

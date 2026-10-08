@@ -49,7 +49,7 @@
  * M2-04), TC-PKG-07 on the absent Gatekeeper doc (ENOENT). Baseline
  * untouched: 223 passed / 0 failed.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -173,5 +173,103 @@ describe('TC-PKG-07 — unsigned-build Gatekeeper instructions ship as docs (M2-
       'M2-05/owner decision 2026-10-08: the doc must state plainly that the ' +
         'build carries NO notarization (honesty — the app is unsigned)',
     ).toContain('notarization');
+  });
+});
+
+/**
+ * M3-07 (RED) — app icon + naming, owner decision 2026-10-08 (board
+ * `docs/plans/m3-polish.md` Phase C): the icon is GENERATED IN-REPO —
+ * `assets/app-icon.svg` is the source, `scripts/build-icon.mjs` produces
+ * the `.icns` (darwin, iconutil toolchain) and the `.png` (linux, ≥ 256 px)
+ * artifacts the builder config wires in; NO owner artwork is involved.
+ * The `productName` pin (BRIEF §9) rides along as an additive naming guard.
+ * Test plan: TC-POL-04 (docs/qa/m3-test-plan.md §4).
+ */
+describe('TC-POL-04 — app icon generated in-repo + naming pin (M3-07)', () => {
+  it('builderConfig.iconWiredToGeneratedArtifactsAndProductNamePinned', () => {
+    const yml = repoFile('electron-builder.yml');
+    const top = live(yml.split('\n'));
+    expect(
+      top.some((line) => line.trim() === 'productName: S3 Bypass Desktop'),
+      'M3-07/BRIEF §9: productName stays exactly "S3 Bypass Desktop" — the naming ' +
+        'pin may never drift while the icon work lands',
+    ).toBe(true);
+    const mac = live(blockOf(yml, 'mac'));
+    expect(
+      mac.some((line) => line.trim() === 'icon: assets/icon.icns'),
+      'M3-07: the mac: block must declare the generated .icns ' +
+        '(electron-builder icon:, produced from assets/app-icon.svg)',
+    ).toBe(true);
+    const linux = live(blockOf(yml, 'linux'));
+    expect(
+      linux.some((line) => line.trim() === 'icon: assets/icon.png'),
+      'M3-07: the linux: block must declare the generated .png ' +
+        '(electron-builder icon:, produced from assets/app-icon.svg)',
+    ).toBe(true);
+  });
+
+  it('appIcon.sourceGeneratorAndArtifactsShipInRepo', () => {
+    // ABSENCE RED (strategy §5.1): assets/ and the generator do not exist
+    // yet — M3-07 GREEN creates them. Explicit reasons, never raw ENOENT.
+    expect(
+      existsSync(join(ROOT, 'assets/app-icon.svg')),
+      'M3-07 (owner decision): the icon source is an in-repo SVG — assets/app-icon.svg ' +
+        'must exist (no external artwork)',
+    ).toBe(true);
+    expect(
+      existsSync(join(ROOT, 'scripts/build-icon.mjs')),
+      'M3-07: scripts/build-icon.mjs must exist — it generates the .icns (darwin, ' +
+        'iconutil) and the .png (linux) from the SVG source',
+    ).toBe(true);
+    expect(
+      existsSync(join(ROOT, 'assets/icon.icns')),
+      'M3-07: the generated darwin artifact assets/icon.icns ships in-repo so ' +
+        'packaging needs no extra generation step',
+    ).toBe(true);
+    expect(
+      existsSync(join(ROOT, 'assets/icon.png')),
+      'M3-07: the generated linux artifact assets/icon.png ships in-repo',
+    ).toBe(true);
+
+    const script = repoFile('scripts/build-icon.mjs');
+    expect(script, 'the generator reads the SVG source').toContain('assets/app-icon.svg');
+    expect(script, 'the generator writes the darwin artifact').toContain('assets/icon.icns');
+    expect(script, 'the generator writes the linux artifact').toContain('assets/icon.png');
+    expect(
+      script,
+      'M3-07 board: the .icns is produced via the iconutil toolchain (iconset → icns)',
+    ).toMatch(/iconutil/);
+  });
+
+  it('appIcon.artifactsAreRealIcnsAndPng', () => {
+    // The artifacts must be REAL (magic bytes + size), not placeholders —
+    // the config pins above are vacuous otherwise.
+    const icns = readFileSync(join(ROOT, 'assets/icon.icns'));
+    expect(
+      icns.subarray(0, 4).toString('ascii'),
+      'assets/icon.icns must be an ICNS container (magic "icns")',
+    ).toBe('icns');
+    expect(icns.length, 'assets/icon.icns must be a real container, not a stub').toBeGreaterThan(
+      1000,
+    );
+
+    const png = readFileSync(join(ROOT, 'assets/icon.png'));
+    expect(
+      png.subarray(1, 4).toString('ascii'),
+      'assets/icon.png must be a PNG (magic "PNG")',
+    ).toBe('PNG');
+    expect(
+      png.readUInt32BE(16),
+      'electron-builder linux wants ≥ 256 px (BRIEF §9)',
+    ).toBeGreaterThanOrEqual(256);
+    expect(png.readUInt32BE(20), 'the icon must be square').toBe(png.readUInt32BE(16));
+  });
+
+  it('appIcon.generatorWiredIntoPackageScripts', () => {
+    const pkg = JSON.parse(repoFile('package.json')) as { scripts: Record<string, string> };
+    expect(
+      pkg.scripts['build:icon'],
+      'M3-07: npm run build:icon must regenerate the artifacts (SVG is the source of truth)',
+    ).toContain('build-icon.mjs');
   });
 });
