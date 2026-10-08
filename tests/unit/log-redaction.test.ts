@@ -133,8 +133,11 @@ function expectRedactedDump(dump: string, context: string): void {
     ).toBe(false);
   }
   expect(
-    dump.includes(REDACTED),
-    `${context}: redaction must be ASSERTED, not just absence — ${REDACTED} must be present (strategy §7.4)`,
+    /\[REDACTED(\]|:)/.test(dump),
+    // issue #24/DV-63 RED-fixup: the token-level contract marks with
+    // `[REDACTED:<class>]`, the document/stack paths with plain `[REDACTED]`
+    // — BOTH are an assertion of redaction (strategy §7.4).
+    `${context}: redaction must be ASSERTED, not just absence — ${REDACTED} or a class marker must be present (strategy §7.4)`,
   ).toBe(true);
 }
 
@@ -142,8 +145,9 @@ describe('log redaction — the single entry point (FR-47, NFR-2, §8.4)', () =>
   it('logs.redaction.canarySecretsBecomeRedactedInBuffer', async () => {
     // TC-06-03 (unit half): every canary class — access key id, secret key,
     // session token, bucket password — through BOTH entry points and BOTH
-    // streams: the line is replaced with exactly `[REDACTED]` (FR-47) in the
-    // buffer AND in the value push() returns (what `log:line` would carry).
+    // streams: the secret TOKEN is masked (issue #24/DV-63: class marker, or
+    // whole-line [REDACTED] for document/stack paths) in the buffer AND in
+    // the value push() returns (what `log:line` would carry).
     expect(CANARIES.length, '§9.3 fixture sanity: 4 canaries').toBe(4);
     const collector = await createCollector({ maxLines: 50 });
 
@@ -409,7 +413,8 @@ describe('log redaction — import path & full-loop greps (AC-01.6, TC-NFR2-01)'
         `AC-01.6/NFR-2: canary "${canary}" must have 0 occurrences in the log buffer`,
       ).toBe(false);
     }
-    expect(dump, 'redaction asserted, not just absence').toContain(REDACTED);
+    // issue #24/DV-63 RED-fixup: token-level markers assert redaction too.
+    expect(dump, 'redaction asserted, not just absence').toMatch(/\[REDACTED(\]|:)/);
   });
 
   it('logs.redaction.echoSecretsPipeline.secretLinesBecomeRedactedInBuffer', async () => {

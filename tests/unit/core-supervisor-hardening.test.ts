@@ -314,8 +314,9 @@ describe('supervisor — redaction before lastError (S5-2, errors.md "last redac
       error.cause,
       'S5-2/TC-07-19: the embedded last core line must be REDACTED before it enters ' +
         'lastError — errors.md/data-flows require the "last redacted core line"; a raw ' +
-        'secret-bearing line in the cause is the documented bypass (issue #8)',
-    ).toContain('[REDACTED]');
+        'secret-bearing line in the cause is the documented bypass (issue #8). ' +
+        'issue #24/DV-63 RED-fixup: whole-line [REDACTED] or a class marker both count',
+    ).toMatch(/\[REDACTED(\]|:)/);
 
     // Both IPC channels that carry lastError (OperationResult + every emitted
     // StatusSnapshot) must be free of the canary and of T's path.
