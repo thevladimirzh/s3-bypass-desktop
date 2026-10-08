@@ -74,7 +74,7 @@ M:
  2. state → starting (push status:changed, ≤1 s budget)  [FR-26, NFR-3]
  3. materialize config: decrypt K → merge app-owned inbound
     (listen 127.0.0.1:10808) → write T with 0600;
-    path never logged; relative paths resolved from T's dir [FR-22, FR-23]
+    path never logged; sessionsDir passed through verbatim (relay S3 prefix) [FR-22 amended, FR-23]
     write failure ───────────────────────────────────► E-IO-006, state → stopped
  4. spawn(C, [run, -c, T]) as child of M (arg array, no shell)  [PR-08]
     spawn error (ENOENT→E-IO-004 first) ─────────────► E-CORE-003, state → core-crashed

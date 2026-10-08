@@ -60,7 +60,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, resolve } from 'node:path';
+import { join } from 'node:path';
 import type { Readable } from 'node:stream';
 
 import { DEFAULT_SOCKS_PORT } from '../shared/constants';
@@ -286,34 +286,13 @@ function mergeLoopbackInbound(doc: Record<string, unknown>): void {
 }
 
 /**
- * FR-22: relative profile paths resolve from T's directory, never the user's
- * CWD. `sessionsDir` is the profile schema's only filesystem path (BR-V-08
- * already rejects absolute/traversal values at import, so resolving here is
- * purely a base-directory decision).
- */
-function resolveProfilePaths(doc: Record<string, unknown>, baseDir: string): void {
-  const outbounds = doc['outbounds'];
-  if (!Array.isArray(outbounds)) {
-    return;
-  }
-  for (const outbound of outbounds) {
-    if (!isRecord(outbound)) continue;
-    const settings = outbound['settings'];
-    if (!isRecord(settings)) continue;
-    const storage = settings['storage'];
-    if (!isRecord(storage)) continue;
-    const sessionsDir = storage['sessionsDir'];
-    if (typeof sessionsDir === 'string' && !isAbsolute(sessionsDir)) {
-      storage['sessionsDir'] = resolve(baseDir, sessionsDir);
-    }
-  }
-}
-
-/**
- * Materializes T from the stored profile (FR-22/FR-23, data-flows (b) step 3):
- * a fresh directory under the app's temp area (NOT the CWD), the app-owned
- * inbound merged in, relative paths resolved from T's directory, file mode
- * 0600 (written with the mode AND chmod'ed — umask must never weaken it).
+ * Materializes T from the stored profile (FR-22 amended / FR-23, data-flows
+ * (b) step 3): a fresh directory under the app's temp area (NOT the CWD), the
+ * app-owned inbound merged in, the profile's relative `sessionsDir` passed
+ * through verbatim — for the fedarisha protocol it is the session-rendezvous
+ * S3 key prefix, not a filesystem path, so nothing in the config is ever
+ * rewritten against a local directory (issue #23), file mode 0600 (written
+ * with the mode AND chmod'ed — umask must never weaken it).
  * Any failure throws; the caller maps it to E-IO-006 without surfacing the
  * raw reason (NFR-5: one documented triple, no exception text).
  */
@@ -325,7 +304,6 @@ function materializeConfig(profileJson: string): MaterializedConfig {
       throw new Error('profile document must be a JSON object');
     }
     mergeLoopbackInbound(parsed);
-    resolveProfilePaths(parsed, dir);
     const path = join(dir, 'core-config.json');
     writeFileSync(path, `${JSON.stringify(parsed, null, 2)}\n`, { mode: CONFIG_FILE_MODE });
     chmodSync(path, CONFIG_FILE_MODE);
