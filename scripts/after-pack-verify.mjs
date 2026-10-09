@@ -26,6 +26,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { readStagingManifest, TARGETS } from './core-staging.mjs';
+import { signMacBundle } from './mac-adhoc-sign.mjs';
 import { expectedShaForAsset } from './verify-core-pin.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -136,14 +137,12 @@ export default async function afterPack(context) {
     throw new Error(`core pack gate: unsupported platform ${platform}`);
   }
   const target = `${platform}-${archName(context.arch)}`;
+  // Resolved lazily per platform: the linux leg must not require a `packager`
+  // in its context (TC-PKG-22 drives this entry with a bare linux context).
+  const appPath = () => join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
   const resourcesDir =
     platform === 'darwin'
-      ? join(
-          context.appOutDir,
-          `${context.packager.appInfo.productFilename}.app`,
-          'Contents',
-          'Resources',
-        )
+      ? join(appPath(), 'Contents', 'Resources')
       : join(context.appOutDir, 'resources');
   verifyPackedCore({
     coreResourcesDir: join(resourcesDir, 'core', platform),
@@ -151,4 +150,11 @@ export default async function afterPack(context) {
     target,
     pinDocText: readFileSync(PIN_DOC, 'utf8'),
   });
+
+  // Sign last — packing the core above invalidates any earlier signature, and
+  // an unsigned-but-inconsistent bundle is what makes macOS report the app as
+  // damaged rather than asking the tester to confirm an unknown developer.
+  if (platform === 'darwin') {
+    signMacBundle(appPath());
+  }
 }
