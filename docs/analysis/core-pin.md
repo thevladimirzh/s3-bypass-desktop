@@ -12,14 +12,14 @@ asset, exit 2 usage).
 
 | Field       | Value           |
 | ----------- | --------------- |
-| Release tag | `v0.1.0-fork.2` |
+| Release tag | `v0.1.0-fork.3` |
 
 Release published 2026-10-09 (our fork); tag commit
-committer date 2026-10-09T20:09:36+03:00:
+committer date 2026-10-09T21:32:29+03:00:
 
 | Field      | Value                                      |
 | ---------- | ------------------------------------------ |
-| Commit SHA | `a4f92fbd945ea46285b1ae2f9256fe15532bcc92` |
+| Commit SHA | `95c6befbf168057a650e0fd7ae3968ab0da352a3` |
 
 Source repository: `github.com/thevladimirzh/s3-bypass-protocol` — our hardened
 fork of `github.com/Fedarisha/Xray-core-fedarisha`, based on upstream tag
@@ -41,9 +41,9 @@ matched.
 
 | Asset                      | SHA-256                                                          | Bytes    |
 | -------------------------- | ---------------------------------------------------------------- | -------- |
-| `Xray-linux-64.zip`        | 1e932ea6f2648681be93c8622564b16f112fd22bbe04a45df6100b01d82b7de9 | 22942754 |
-| `Xray-macos-64.zip`        | 6329843523b626ec0538c4a905abd097fd2e30e5fdbddb64991fe75993b2e363 | 22715772 |
-| `Xray-macos-arm64-v8a.zip` | 6a91763963bd8f66c7197a849258e10a9d9b1dcdc581052f9ac8a0de031fa21b | 21368221 |
+| `Xray-linux-64.zip`        | 72c6005321446cc1ab4fe60f85e20576bfe8907ed36fdbc53e272868b94454e1 | 22941394 |
+| `Xray-macos-64.zip`        | 205fc117e078972b6a7e9ce368d4692979bac2db5fc91fbc51fb834820f40b19 | 22714214 |
+| `Xray-macos-arm64-v8a.zip` | f400b1a1d3dddca9f2208a36418f35702c5336c2bebec11549baa87377c584e3 | 21366671 |
 
 ## Verification contract (M2 DoD #1)
 
