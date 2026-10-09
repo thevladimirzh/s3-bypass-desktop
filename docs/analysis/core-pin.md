@@ -10,18 +10,21 @@ asset, exit 2 usage).
 
 ## Pinned release
 
-| Field       | Value              |
-| ----------- | ------------------ |
-| Release tag | `v26.9.9-1.0.1fed` |
+| Field       | Value           |
+| ----------- | --------------- |
+| Release tag | `v0.1.0-fork.2` |
 
-Release published 2026-09-26T16:07:45Z (upstream releases API); tag commit
-committer date 2026-09-26T16:06:17Z:
+Release published 2026-10-09 (our fork); tag commit
+committer date 2026-10-09T20:09:36+03:00:
 
 | Field      | Value                                      |
 | ---------- | ------------------------------------------ |
-| Commit SHA | `036606649aae3ee36102b02e6437c7266bc2f2be` |
+| Commit SHA | `a4f92fbd945ea46285b1ae2f9256fe15532bcc92` |
 
-Source repository: `github.com/Fedarisha/Xray-core-fedarisha` (Go,
+Source repository: `github.com/thevladimirzh/s3-bypass-protocol` — our hardened
+fork of `github.com/Fedarisha/Xray-core-fedarisha`, based on upstream tag
+`v26.9.9-1.0.1fed` (commit `03660664`) — the same base the previous pin used,
+so the engine log wording stays identical to it (Go,
 **MPL-2.0** — corrected 2026-10-08 from the BRIEF's GPL-3.0 claim: the LICENSE
 file inside every release asset reads "Mozilla Public License Version 2.0" and
 the GitHub license API reports `MPL-2.0`; the bundled binary still triggers
@@ -32,15 +35,15 @@ the BRIEF §5 / M2-06 attribution duties — the client itself stays GPL-3.0).
 One row per bundled platform (darwin-x64, darwin-arm64, linux-x64 per
 BRIEF §9; Linux package formats AppImage + `.deb` + `.rpm` per the owner
 decision of 2026-10-08). SHA-256 values were computed from the downloaded
-release assets on 2026-10-08 and cross-checked against the upstream
+release assets on 2026-10-09 and cross-checked against the fork release
 `.dgst` files shipped with the release (`SHA2-256=` lines) — all three
 matched.
 
 | Asset                      | SHA-256                                                          | Bytes    |
 | -------------------------- | ---------------------------------------------------------------- | -------- |
-| `Xray-linux-64.zip`        | bf586dbff2ae9e79ebf1619c2c9b3516fd60f09c19b0b944e56327915e705648 | 22964959 |
-| `Xray-macos-64.zip`        | 552c1789b28d0ca0d41f704b62e5c7b16f5ca616a7859a4d4c20a29f6ab84f71 | 22733366 |
-| `Xray-macos-arm64-v8a.zip` | 13a8eb7d8220c9f61a174ef309a402424db5b91fad4e06732a8c9b9799fa29e1 | 21388276 |
+| `Xray-linux-64.zip`        | 1e932ea6f2648681be93c8622564b16f112fd22bbe04a45df6100b01d82b7de9 | 22942754 |
+| `Xray-macos-64.zip`        | 6329843523b626ec0538c4a905abd097fd2e30e5fdbddb64991fe75993b2e363 | 22715772 |
+| `Xray-macos-arm64-v8a.zip` | 6a91763963bd8f66c7197a849258e10a9d9b1dcdc581052f9ac8a0de031fa21b | 21368221 |
 
 ## Verification contract (M2 DoD #1)
 
