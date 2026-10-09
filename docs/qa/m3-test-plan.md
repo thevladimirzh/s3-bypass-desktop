@@ -517,7 +517,7 @@ m2-test-plan §11 (DV-63 last).)_
 | DV-64 | M3-03 | Spec amendments inside the RED commit: `errors.md` §0 extended (no `E-…-###` code citation and no OS errno token inside title/cause/nextStep; the `code` field stays internal), §1 gains `E-VAL-016` (no-profile step-0 refusal — DV-19 superseded, the `E-VAL-*` placeholder is gone) and `E-VAL-017` (generic state-machine rejection — was mislabelled `E-VAL-015`, audit B-8c), §3/§4 drop the `E-PLAT-005`/`E-PLAT-001` next-step citations; sibling pins amended accordingly (`E-VAL-015`→`E-VAL-017` in TC-02-07, `E-VAL-*`→`E-VAL-016` in TC-02-03); the canned E-PLAT-002 fixtures in `proxy-wiring.test.ts`/`proxy-toggle.test.tsx` reworded to the amended §4 sentence (and the `system-proxy.test.ts` TC-04-06 substring pin with them); the two new `FORBIDDEN` rules are `userTextOnly`.                                                                                                 | Owner-approved M3 batch A ("error-wording pass") on 2026-10-08; wording is strengthened, no existing pin weakened or removed (strategy §5.2); the `userTextOnly` split follows §0 itself (the code is internal _by design_ — only its citation inside user text is forbidden), so the canary/stack/`Error:` rules keep scanning `tripleText` unchanged.                     |
 | DV-65 | M3-10 | The validation tag run (`v0.0.1-m310check`, run 37846078455) failed all three legs on the afterPack core gate: `ARCH_BY_ENUM` in `scripts/after-pack-verify.mjs` never matched electron-builder's real `Arch` enum (`ia32=0, x64=1, armv7l=2, arm64=3, universal=4`), so every x64 build resolved to a never-staged `*-ia32` target and the fail-closed gate (issue #20 / DV-60) did exactly its job. Fix-forward inside the M3-10 window: **TC-PKG-22** (new, m2-test-plan §6) pins the exported `archName` seam row by row (including the CI-caught `1 → x64`) and the default `afterPack(context)` target resolution (arch 0 → `linux-ia32` fail-closed); GREEN aligns the table with `builder-util/out/arch.d.ts`, drops the phantom `s390x`/`riscv64`/`armv6l` enum entries (they do not exist in the Arch enum — the string passthrough still accepts them) and exports `archName` for the test. | Release runs are the empirical layer of DoD #1; the gate's own tests (TC-PKG-19) could not see this because they pass literal STRING targets — the enum path lived only in the untested default export, and the DV-60 local GREEN ran on an arm64 host where `3 → arm64` was coincidentally right. No existing pin weakened; the deviation is a DEV bug fix + two new pins. |
 
-### Beta build `v0.1.0-beta.2` — our own core (2026-10-09)
+### Beta build `v0.1.0-beta.3` — our own core + signed bundle (2026-10-09)
 
 - **Why**: beta.1 bundled the upstream engine, whose writer abandons a
   file after `uploadAttempts`. The peer reads strictly in sequence and
@@ -537,3 +537,23 @@ m2-test-plan §11 (DV-63 last).)_
   (the Project X one with NFT/sponsor promotion was inside the ZIPs);
   asset digests re-verified against the release `.dgst` files.
 - Version bump `0.1.0-beta.1 → 0.1.0-beta.2`; no test pins the version.
+
+### Beta build `v0.1.0-beta.3` — Gatekeeper fix (2026-10-09)
+
+- **Symptom**: beta.2 could not be opened — macOS showed "приложение
+  повреждено".
+- **Not a bad download**: the dmg hash matched the manifest, and beta.1
+  was checked afterwards and shipped the same defect.
+- **Cause**: `mac.identity: null` (BRIEF §10) leaves the Mach-O with the
+  linker's ad-hoc signature but no bundle seal — no
+  `Contents/_CodeSignature` at all. spctl then reports "code has no
+  resources but signature indicates they must be present", which macOS
+  renders as damage.
+- **Fix**: TC-PKG-24 — the pack hook ad-hoc signs the bundle as its last
+  step (after the core is packed; adding files invalidates signatures).
+  Gatekeeper still asks the tester to confirm the first launch, but the
+  prompt is now truthful.
+- Verified by TC-PKG-24 (5 specs): `_CodeSignature` produced,
+  `codesign --verify` passes, spctl no longer reports the broken seal,
+  re-signing is idempotent, hook is a no-op off macOS.
+- Deviation from beta.2: version bump only.
